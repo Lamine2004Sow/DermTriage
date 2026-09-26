@@ -2,7 +2,7 @@
 
 **Notebook source :** `exploration.ipynb`  
 **Date :** 26 septembre 2026  
-**Auteur :**  
+**Auteur :** Lamine SOW  
 
 ---
 
