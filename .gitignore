@@ -223,3 +223,8 @@ __marimo__/
 # database - model
 data/
 
+.dual-graph/
+.dual-graph-context/
+
+# Local project guide
+DermTriage_TP_guide.md
