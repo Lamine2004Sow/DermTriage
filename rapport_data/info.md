@@ -18,6 +18,7 @@ et chiffres exacts.
 | Dossier | Contenu |
 |---|---|
 | `phase_0_assainissement/` | Splits reproductibles, baselines, changements de code, budget de calcul de la phase 0 |
+| `phase_1_protocole/` | Décisions du protocole expérimental (résumé de `notes/PROTOCOL.md`) |
 
 ## Résultats de référence
 
