@@ -228,3 +228,9 @@ data/
 
 # Local project guide
 DermTriage_TP_guide.md
+
+# Guides locaux
+guide_new_version.*
+
+# Configuration locale de Claude Code
+.claude/

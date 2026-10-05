@@ -102,3 +102,15 @@ def test_compute_metrics_predictions_imparfaites():
     assert result["accuracy"] == pytest.approx(9 / 10)
     assert result["balanced_accuracy"] == pytest.approx((2 / 3 + 1 + 5) / 7)
     assert result["f1"] == pytest.approx((4 / 5 + 4 / 5 + 5) / 7)
+
+
+def test_class_weights_classe_absente():
+    # La classe 3 n'a aucun exemple : pas de décalage, pas d'inf ni de NaN.
+    df = pd.DataFrame({"label": [0, 0, 1, 2, 4, 5, 5, 6]})
+    weights = get_class_weights(df, num_classes=7)
+    assert weights.shape == (7,)
+    assert torch.isfinite(weights).all()
+    assert weights[3] == 0
+    # Les classes présentes restent alignées sur leur indice (6 -> 1/1, 5 -> 1/2).
+    assert weights[6] == pytest.approx(8 / (7 * 1))
+    assert weights[5] == pytest.approx(8 / (7 * 2))
