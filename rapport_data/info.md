@@ -31,4 +31,4 @@ et chiffres exacts.
 | Machine | Une époque ResNet-18 (7 210 images) |
 |---|---:|
 | Kaggle, Tesla T4 | 1,2 min |
-| Portable, CPU (extrapolé) | ≈ 17,6 min |
+| Portable, CPU (extrapolé) | ≈ 17,6 min (≈ 14,6 min avec images 256 px) |

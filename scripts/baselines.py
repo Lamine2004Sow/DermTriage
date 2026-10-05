@@ -1,6 +1,6 @@
 """Baselines (DummyClassifier et régression logistique sur features couleur).
 
-Lit data/processed/splits.csv, entraîne sur les folds 1 à 4, valide sur le
+Lit data/processed/train_val.csv (le test n'est jamais chargé), entraîne sur les folds 1 à 4, valide sur le
 fold 0 et écrit results/baselines/fold0.json.
 """
 
@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.utils import compute_metrics  # noqa: E402
 
-SPLITS = ROOT / "data/processed/splits.csv"
+TRAIN_VAL = ROOT / "data/processed/train_val.csv"
 OUTPUT = ROOT / "results/baselines/fold0.json"
 VAL_FOLD = 0
 SEED = 42
@@ -46,8 +46,8 @@ def extract_features(image_path):
 
 
 def main():
-    splits = pd.read_csv(SPLITS)
-    train_val = splits[splits["split"] == "train_val"]
+    train_val = pd.read_csv(TRAIN_VAL)
+    assert (train_val["split"] == "train_val").all()
     train_df = train_val[train_val["fold"] != VAL_FOLD]
     val_df = train_val[train_val["fold"] == VAL_FOLD]
 

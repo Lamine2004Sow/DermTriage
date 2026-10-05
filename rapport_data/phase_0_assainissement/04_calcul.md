@@ -16,6 +16,7 @@
 |---|---|---:|---:|
 | Kaggle, Tesla T4 (2 workers) | époque entière, 226 lots en 73,8 s | 0,327 | **1,2 min** |
 | Portable, CPU 8 cœurs (2 workers) | 8 lots, extrapolé | 4,68 | **≈ 17,6 min** |
+| Portable, CPU 8 cœurs (2 workers), images 256 px | 8 lots, extrapolé | 3,87 | ≈ 14,6 min |
 | Portable, CPU 8 cœurs (0 worker) | 3 lots, extrapolé | 4,86 | ≈ 18,3 min |
 
 L'estimation du guide (10 à 20 min par époque sur CPU) est confirmée. Les temps
@@ -27,10 +28,10 @@ grandeur, pas mesure précise.
   20 époques coûte ≈ 25 min sur Kaggle contre ≈ 6 h sur le portable.
 - Les expériences d'entraînement se font sur Kaggle ; le CPU local sert au
   développement et aux tests.
-- Le chargement des JPEG pleine résolution peut limiter le GPU : `make preprocess`
-  (images 256 px) et le cache de features (phase 3) restent des leviers.
-  `DermDataset` lit encore `data/raw`, le gain du pré-redimensionnement n'est
-  donc pas encore exploité.
+- Pré-redimensionnement (`make preprocess`, `--data-dir data/interim/256`) : −17 %
+  par lot sur CPU (4,68 → 3,87 s). Faible gain sur CPU, où le calcul du modèle
+  domine ; il devrait compter davantage sur GPU, où le décodage JPEG peut
+  devenir le goulot (non mesuré). Le cache de features (phase 3) reste un levier.
 
 ## Reproductibilité sur Kaggle
 - Datasets utilisés : images HAM10000 (métadonnées identiques, MD5 `8f85fb1a…`)

@@ -14,13 +14,17 @@ class DermDataset(Dataset):
             raise FileNotFoundError(
                 f"Répertoire de données introuvable : {self.data_dir}"
             )
-        # Reconstruction des paths à partir des image_id
+        # Reconstruction des paths à partir des image_id. Deux organisations :
+        # data/raw (deux sous-dossiers) ou data/interim/256 (dossier plat).
+        dossiers = [
+            self.data_dir / "HAM10000_images_part_1",
+            self.data_dir / "HAM10000_images_part_2",
+            self.data_dir,
+        ]
         self.chemins = {
             f.stem: f
-            for dossier in [
-                self.data_dir / "HAM10000_images_part_1",
-                self.data_dir / "HAM10000_images_part_2"
-            ]
+            for dossier in dossiers
+            if dossier.is_dir()
             for f in dossier.glob("*.jpg")
         }
 

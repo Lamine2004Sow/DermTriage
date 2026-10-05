@@ -90,3 +90,12 @@ def test_repertoire_absent_leve_une_erreur_explicite(samples):
     with pytest.raises(FileNotFoundError, match="repertoire_absent"):
         dataset = DermDataset(df=df, data_dir=str(missing), transform=get_val_transforms())
         dataset[0]
+
+
+def test_dossier_plat_comme_data_interim(tmp_path):
+    # Même contrat avec un dossier plat (ex. data/interim/256).
+    Image.fromarray(np.zeros((256, 341, 3), dtype=np.uint8)).save(tmp_path / "image_0.jpg")
+    df = pd.DataFrame([{"image_id": "image_0", "label": 3}])
+    image, label = DermDataset(df, tmp_path, get_val_transforms())[0]
+    assert image.shape == (3, 224, 224)
+    assert label == 3

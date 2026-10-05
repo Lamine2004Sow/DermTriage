@@ -24,9 +24,12 @@ leur indice. Il échouait avant le correctif (ancien code : 6 poids au lieu de 7
 ## Tests
 38 tests passent (`make test`).
 
-## Reste à faire
-- Lancer `make preprocess` et mesurer le gain de temps de chargement.
-- Faire lire `train_val.csv` à l'entraînement et aux baselines.
-- Faire lire les images pré-redimensionnées par `DermDataset`.
+## Compléments
+| Élément | Changement | Pourquoi |
+|---|---|---|
+| `scripts/baselines.py` | Lit `train_val.csv` | Le test n'est jamais chargé ; résultats inchangés (`fold0.json` identique) |
+| `src/dataset.py` | Accepte aussi un dossier plat (`data/interim/256`) | Utiliser les images pré-redimensionnées sans changer le contrat |
+| `tests/test_dataset.py` | Test du dossier plat | 39 tests passent |
+| `make preprocess` | 10 015 images à 256 px, 257 Mo, ≈ 5 min | Réduire le coût de décodage JPEG |
 
 Temps d'une époque : voir `04_calcul.md`.
