@@ -1,10 +1,27 @@
-dans ce dosier je vais conserver tous les info (donnee resultat expeience etc) de maniere structurer pour la redaction du futur raport du projt 
+# Données du rapport
 
+Ce dossier rassemble, de façon structurée, tout ce qui servira à rédiger le
+rapport final du projet DermTriage : données, résultats, expériences, décisions
+et chiffres exacts.
+
+## Règles
+- Un dossier par phase du projet, un fichier par sujet.
+- Chaque résultat indique la commande qui le reproduit et le fichier source.
+- Les valeurs sont recopiées telles quelles (précision complète), les
+  arrondis viennent ensuite.
+- Les décisions sont accompagnées de leur justification.
+- Les fichiers de ce dossier décrivent ; le code, les données et les
+  résultats bruts restent dans `src/`, `scripts/`, `data/` et `results/`.
 
 ## Organisation
-
-Un dossier par phase du projet ; chaque fichier = un sujet à réutiliser dans le rapport.
 
 | Dossier | Contenu |
 |---|---|
 | `phase_0_assainissement/` | Splits reproductibles, baselines, changements de code de la phase 0 |
+
+## Résultats de référence
+
+| Modèle | F1 macro (fold 0) | Source |
+|---|---:|---|
+| Dummy (classe majoritaire) | 0,1146 | `results/baselines/fold0.json` |
+| Régression logistique (couleur) | 0,2436 | `results/baselines/fold0.json` |
