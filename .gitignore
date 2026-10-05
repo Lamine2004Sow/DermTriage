@@ -236,4 +236,4 @@ guide_new_version.*
 .claude/
 
 # Résultats d'entraînement (poids, logits)
-runs/
+runs*/

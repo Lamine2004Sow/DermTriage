@@ -19,7 +19,7 @@ et chiffres exacts.
 |---|---|
 | `phase_0_assainissement/` | Splits reproductibles, baselines, changements de code, budget de calcul de la phase 0 |
 | `phase_1_protocole/` | Décisions du protocole expérimental (résumé de `notes/PROTOCOL.md`) |
-| `phase_2_entrainement/` | Pipeline d'entraînement, tests, contrôles de bon sens |
+| `phase_2_entrainement/` | Pipeline d'entraînement, tests, contrôles de bon sens, fold 0 et reproductibilité |
 
 ## Résultats de référence
 
@@ -27,6 +27,7 @@ et chiffres exacts.
 |---|---:|---|
 | Dummy (classe majoritaire) | 0,1146 | `results/baselines/fold0.json` |
 | Régression logistique (couleur) | 0,2436 | `results/baselines/fold0.json` |
+| ResNet-18 tête seule (provisoire, 1 fold) | 0,5425 | `results/resnet18_head/fold0_seed0/metrics.json` |
 
 ## Budget de calcul
 

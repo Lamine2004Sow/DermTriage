@@ -38,7 +38,39 @@ lancements identiques → même macro-F1 à 1e-4 près, le test n'est jamais cha
   accuracy 0,2606, macro-F1 0,2765. Une seule époque, un seul fold, sans arrêt précoce :
   ce chiffre ne sert pas à décider H1, qui se jugera sur les 5 folds selon `PROTOCOL.md`.
 
-## Reste à faire (critère de passage)
-- Entraînement complet du fold 0 avec `scripts/train.py` (cinq fichiers produits).
-- Relancer à l'identique : même macro-F1 à 1e-4 près (CPU ; un GPU peut différer
-  légèrement malgré la graine, à cause d'opérations non déterministes).
+## Entraînement complet du fold 0 (Kaggle, Tesla T4, commit `91e8538`)
+`configs/resnet18_head.yaml`, seed 0. Fichiers versionnés dans
+`results/resnet18_head/fold0_seed0/` (`metrics.json`, `history.csv`, `config.yaml`) ;
+`best.pt` et `val_logits.csv` restent hors du dépôt (`runs*/`).
+
+| Élément | Valeur |
+|---|---|
+| Meilleure époque | 14 (19 époques lancées, arrêt précoce, patience 4) |
+| Macro-F1 de validation | **0,5425** (0,5424631950301545) |
+| Balanced accuracy | 0,5262 |
+| Accuracy | 0,7476 |
+| Perte de validation | 0,6980 |
+| Durée d'une époque | ≈ 24 à 26 s |
+
+Référence : régression logistique couleur, macro-F1 0,2436 (même fold). Résultat provisoire
+sur un seul fold : H1 se décide sur les 5 folds (protocole).
+
+Observations :
+- La macro-F1 de validation oscille entre 0,47 et 0,54 après l'époque 3 (0,5425 à
+  l'époque 14, 0,508 à l'époque 15) : la « meilleure époque » est en partie un pic de
+  bruit, ce qui renforce la limite d'optimisme notée dans le protocole.
+- Perte d'entraînement (0,62) et de validation (0,66) proches : pas de sur-apprentissage ;
+  le modèle à tête seule est plutôt limité en capacité (sujet de H2, non ajusté d'après ce fold).
+
+## Critère de passage : atteint
+- Test des 32 images : réussi.
+- Entraînement complet du fold 0 : les cinq fichiers sont produits ; `val_logits.csv`
+  couvre exactement les 1 803 images (1 345 lésions) du fold 0 ; `config.yaml` contient le
+  hash du commit.
+- Reproductibilité : deux lancements identiques (`runs/` et `runs_bis/`) donnent des
+  `best.pt`, `config.yaml`, `metrics.json` et `val_logits.csv` **identiques au bit près**
+  (même somme MD5, écart maximal des logits = 0,0), y compris sur GPU. Seule la colonne
+  des durées de `history.csv` diffère. Critère demandé : 1e-4 sur la macro-F1.
+
+## Suite
+- Lancer les 5 folds de `resnet18_head` et `resnet18_layer4` (phase 3) et comparer fold par fold.

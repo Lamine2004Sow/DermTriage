@@ -171,6 +171,10 @@ fold 0 (1 803 images) :
 | Classifieur naïf (classe majoritaire) | 66,94 % | 14,29 % | 11,46 % |
 | Régression logistique (features couleur) | 66,28 % | 22,82 % | 24,36 % |
 
+ResNet-18 tête seule (`configs/resnet18_head.yaml`), fold 0, seed 0 : macro-F1 de validation
+0,5425 (résultat provisoire sur un seul fold, relancé à l’identique avec les mêmes sorties ;
+`results/resnet18_head/fold0_seed0/`).
+
 Durée d’une époque ResNet-18 (7 210 images) : environ 0,6 min sur un GPU Tesla T4
 (Kaggle, images à 256 px ; 1,2 min avec les JPEG d’origine), environ 15 à 18 min sur CPU.
 
@@ -189,7 +193,7 @@ de dispositif de triage clinique complet.
 - [x] Mesurer le coût de calcul d’une époque
 - [x] Écrire le protocole expérimental (`notes/PROTOCOL.md`)
 - [x] Écrire le script d’entraînement reproductible et ses tests
-- [ ] Valider l’entraînement complet du fold 0 et sa reproductibilité
+- [x] Valider l’entraînement complet du fold 0 et sa reproductibilité
 - [ ] Versionner les configurations et les résultats d’expériences
 - [ ] Ajouter une interface d’inférence
 - [ ] Documenter les performances, les biais et les limites du modèle
