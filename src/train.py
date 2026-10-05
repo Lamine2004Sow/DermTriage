@@ -25,30 +25,34 @@ def train_one_epoch(model, loader, *, optimizer, criterion, device):
     return total_loss / len(loader.dataset)
 
 
+@torch.no_grad()
+def predict(model, loader, device):
+    """
+    Passe le modèle en mode évaluation et retourne (logits, labels)
+    en tenseurs CPU, dans l'ordre du dataset (loader sans mélange).
+    """
+    model.eval()
+    all_logits = []
+    all_labels = []
+
+    for images, labels in loader:
+        all_logits.append(model(images.to(device)).cpu())
+        all_labels.append(labels)
+
+    return torch.cat(all_logits), torch.cat(all_labels)
+
+
 def evaluate(model, loader, criterion, device):
     """
     Évalue le modèle sans gradient.
-    Retourne un dict avec loss, accuracy, balanced_accuracy, f1.
+    Retourne un dict avec loss, accuracy, balanced_accuracy, f1
+    et les logits / labels (tenseurs CPU) pour la calibration.
     """
-    model.eval()
-    total_loss = 0.0
-    all_preds = []
-    all_labels = []
+    logits, labels = predict(model, loader, device)
 
-    with torch.no_grad():
-        for images, labels in loader:
-            images = images.to(device)
-            labels = labels.to(device)
-
-            outputs = model(images)
-            loss = criterion(outputs, labels)
-            total_loss += loss.item() * len(labels)
-
-            preds = outputs.argmax(dim=1)
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
-
-    metrics = compute_metrics(all_labels, all_preds)
-    metrics["loss"] = total_loss / len(loader.dataset)
+    metrics = compute_metrics(labels.numpy(), logits.argmax(dim=1).numpy())
+    metrics["loss"] = criterion(logits.to(device), labels.to(device)).item()
+    metrics["logits"] = logits
+    metrics["labels"] = labels
 
     return metrics

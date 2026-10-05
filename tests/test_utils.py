@@ -13,7 +13,9 @@ import pytest
 import torch
 from torch import nn
 
-from src.utils import compute_metrics, get_class_weights, load_model, save_model
+from src.utils import (
+    compute_metrics, get_class_weights, load_model, save_model, set_seed,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -114,3 +116,20 @@ def test_class_weights_classe_absente():
     # Les classes présentes restent alignées sur leur indice (6 -> 1/1, 5 -> 1/2).
     assert weights[6] == pytest.approx(8 / (7 * 1))
     assert weights[5] == pytest.approx(8 / (7 * 2))
+
+
+def test_set_seed_rend_les_tirages_reproductibles():
+    def draw():
+        generator = set_seed(7)
+        return (
+            random.random(),
+            np.random.rand(),
+            torch.rand(3),
+            torch.rand(3, generator=generator),
+        )
+
+    first, second = draw(), draw()
+    assert first[0] == second[0]
+    assert first[1] == second[1]
+    assert torch.equal(first[2], second[2])
+    assert torch.equal(first[3], second[3])

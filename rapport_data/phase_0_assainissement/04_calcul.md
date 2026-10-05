@@ -15,6 +15,7 @@
 | Machine | Mesure | s / lot | Époque complète |
 |---|---|---:|---:|
 | Kaggle, Tesla T4 (2 workers) | époque entière, 226 lots en 73,8 s | 0,327 | **1,2 min** |
+| Kaggle, Tesla T4, images 256 px, tête seule (`train_prototype.ipynb`) | époque entière | ≈ 0,30 (lots de 64) | **0,57 min (34,3 s)** |
 | Portable, CPU 8 cœurs (2 workers) | 8 lots, extrapolé | 4,68 | **≈ 17,6 min** |
 | Portable, CPU 8 cœurs (2 workers), images 256 px | 8 lots, extrapolé | 3,87 | ≈ 14,6 min |
 | Portable, CPU 8 cœurs (0 worker) | 3 lots, extrapolé | 4,86 | ≈ 18,3 min |
@@ -31,7 +32,10 @@ grandeur, pas mesure précise.
 - Pré-redimensionnement (`make preprocess`, `--data-dir data/interim/256`) : −17 %
   par lot sur CPU (4,68 → 3,87 s). Faible gain sur CPU, où le calcul du modèle
   domine ; il devrait compter davantage sur GPU, où le décodage JPEG peut
-  devenir le goulot (non mesuré). Le cache de features (phase 3) reste un levier.
+  devenir le goulot : confirmé, une époque passe de 74 s (JPEG d'origine) à 34 s
+  (images 256 px) sur la T4, soit un gain d'un facteur ≈ 2 (le second chiffre est
+  mesuré avec la tête seule entraînée, le premier avec toutes les couches ; les
+  deux montages ne sont pas strictement identiques). Le cache de features (phase 3) reste un levier.
 
 ## Reproductibilité sur Kaggle
 - Datasets utilisés : images HAM10000 (métadonnées identiques, MD5 `8f85fb1a…`)

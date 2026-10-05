@@ -37,19 +37,23 @@ remplace ni l’avis ni la prise en charge d’un professionnel de santé.
 ├── src/
 │   ├── classes.py       # liste figée des classes
 │   ├── dataset.py       # jeu de données PyTorch
-│   ├── train.py         # entraînement et évaluation
+│   ├── models.py        # ResNet-18 (tête, layer4 ou tout entraînable)
+│   ├── train.py         # entraînement, prédiction, évaluation
 │   ├── transforms.py    # prétraitements des images
 │   └── utils.py         # poids de classes, métriques, sauvegarde
 ├── scripts/
 │   ├── make_splits.py   # partitions : splits.csv, train_val.csv, test.csv
 │   ├── preprocess.py    # copie des images avec le petit côté à 256 px
 │   ├── baselines.py     # baselines sur le fold 0
+│   ├── train.py         # entraînement d'un fold, écrit runs/<config>/fold<k>_seed<s>/
 │   └── time_epoch.py    # durée d’une époque ResNet-18
+├── configs/             # une configuration YAML par variante
 ├── tests/               # tests unitaires et tests des partitions
 ├── notebooks/           # exploration et baseline d’origine
 ├── notes/               # notes d’exploration et de baseline
 ├── rapport_data/        # informations structurées par phase pour le rapport
-├── results/             # résultats des expériences (JSON)
+├── results/             # résultats des baselines (JSON)
+├── runs/                # résultats des entraînements (non versionné)
 ├── requirements.txt     # dépendances d’exécution
 ├── requirements-dev.txt # dépendances de développement (pytest, jupyterlab)
 └── Makefile             # commandes du projet
@@ -131,6 +135,30 @@ make preprocess
 | `make baselines` | écrit `results/baselines/fold0.json` (≈ 10 min sur CPU) |
 | `make time-epoch` | mesure la durée d’une époque ResNet-18 sur 20 lots |
 
+## Entraîner un modèle
+
+```bash
+python -m scripts.train --config configs/resnet18_head.yaml --fold 0 --seed 0
+```
+
+Chaque lancement écrit dans `runs/<nom_config>/fold<k>_seed<s>/` :
+
+| Fichier | Contenu |
+|---|---|
+| `config.yaml` | configuration exacte et hash du commit Git |
+| `history.csv` | époque, pertes, macro-F1 de validation, durée |
+| `best.pt` | poids de la meilleure époque (arrêt précoce sur la macro-F1) |
+| `val_logits.csv` | `image_id, lesion_id, label, logit_0 … logit_6` |
+| `metrics.json` | métriques finales du fold |
+
+Seul `train_val.csv` est lu : le jeu de test n'est jamais chargé. Les logits sont
+sauvegardés pour calibrer et évaluer l'abstention sans réentraîner. Un GPU est
+conseillé (une époque ≈ 0,6 min sur T4 avec les images à 256 px). L'option `--limit N`
+permet un contrôle rapide, dont les résultats ne sont pas valides.
+
+Le protocole expérimental (hypothèses, usage des données, règle de décision) est
+fixé dans `notes/PROTOCOL.md`.
+
 Les tests des partitions sont ignorés si `data/processed/splits.csv` est absent.
 
 ## Résultats de référence
@@ -143,8 +171,8 @@ fold 0 (1 803 images) :
 | Classifieur naïf (classe majoritaire) | 66,94 % | 14,29 % | 11,46 % |
 | Régression logistique (features couleur) | 66,28 % | 22,82 % | 24,36 % |
 
-Durée d’une époque ResNet-18 (7 210 images) : environ 1,2 min sur un GPU Tesla T4
-(Kaggle), environ 15 à 18 min sur CPU.
+Durée d’une époque ResNet-18 (7 210 images) : environ 0,6 min sur un GPU Tesla T4
+(Kaggle, images à 256 px ; 1,2 min avec les JPEG d’origine), environ 15 à 18 min sur CPU.
 
 ## État et prochaines étapes
 
@@ -159,7 +187,9 @@ de dispositif de triage clinique complet.
 - [x] Rendre les partitions et le mapping des classes reproductibles
 - [x] Établir des baselines de référence
 - [x] Mesurer le coût de calcul d’une époque
-- [ ] Formaliser le script d’entraînement de bout en bout
+- [x] Écrire le protocole expérimental (`notes/PROTOCOL.md`)
+- [x] Écrire le script d’entraînement reproductible et ses tests
+- [ ] Valider l’entraînement complet du fold 0 et sa reproductibilité
 - [ ] Versionner les configurations et les résultats d’expériences
 - [ ] Ajouter une interface d’inférence
 - [ ] Documenter les performances, les biais et les limites du modèle

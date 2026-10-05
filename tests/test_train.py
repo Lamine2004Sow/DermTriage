@@ -12,7 +12,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from src.train import evaluate, train_one_epoch
+from src.train import evaluate, predict, train_one_epoch
+from src.utils import set_seed
 
 
 @pytest.fixture(autouse=True)
@@ -94,3 +95,42 @@ def test_loss_moyenne_par_exemple(setup, phase):
     else:
         actual = evaluate(model, loader, criterion, device)["loss"]
     assert actual == pytest.approx(expected, rel=1e-6)
+
+
+def test_predict_forme_et_ordre_du_dataset(setup):
+    model, loader, _, _, device = setup
+    logits, labels = predict(model, loader, device)
+    assert logits.shape == (11, 7)
+    assert labels.shape == (11,)
+    # Ordre du dataset conservé (loader sans mélange).
+    assert torch.equal(labels, loader.dataset.tensors[1])
+    with torch.no_grad():
+        expected = model(loader.dataset.tensors[0])
+    torch.testing.assert_close(logits, expected)
+
+
+def test_evaluate_retourne_les_logits(setup):
+    model, loader, criterion, _, device = setup
+    result = evaluate(model, loader, criterion, device)
+    assert result["logits"].shape == (11, 7)
+    assert torch.equal(result["labels"], loader.dataset.tensors[1])
+
+
+def test_meme_graine_memes_poids_apres_une_epoque():
+    def run():
+        generator = set_seed(123)
+        images = torch.randn(11, 3, 8, 8)
+        labels = torch.arange(11) % 7
+        loader = DataLoader(
+            TensorDataset(images, labels), batch_size=4, shuffle=True, generator=generator
+        )
+        model = nn.Sequential(nn.Flatten(), nn.Linear(3 * 8 * 8, 7))
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        train_one_epoch(
+            model, loader, optimizer=optimizer, criterion=nn.CrossEntropyLoss(),
+            device=torch.device("cpu"),
+        )
+        return [p.detach().clone() for p in model.parameters()]
+
+    for a, b in zip(run(), run()):
+        torch.testing.assert_close(a, b, rtol=0, atol=0)

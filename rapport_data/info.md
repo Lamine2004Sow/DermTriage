@@ -19,6 +19,7 @@ et chiffres exacts.
 |---|---|
 | `phase_0_assainissement/` | Splits reproductibles, baselines, changements de code, budget de calcul de la phase 0 |
 | `phase_1_protocole/` | Décisions du protocole expérimental (résumé de `notes/PROTOCOL.md`) |
+| `phase_2_entrainement/` | Pipeline d'entraînement, tests, contrôles de bon sens |
 
 ## Résultats de référence
 
@@ -31,5 +32,5 @@ et chiffres exacts.
 
 | Machine | Une époque ResNet-18 (7 210 images) |
 |---|---:|
-| Kaggle, Tesla T4 | 1,2 min |
+| Kaggle, Tesla T4 | 1,2 min (images d'origine), 0,57 min (images 256 px) |
 | Portable, CPU (extrapolé) | ≈ 17,6 min (≈ 14,6 min avec images 256 px) |
