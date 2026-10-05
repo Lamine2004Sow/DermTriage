@@ -2,7 +2,7 @@ import torch
 from .utils import compute_metrics
 
 
-def train_one_epoch(model, loader, optimizer, criterion, device):
+def train_one_epoch(model, loader, *, optimizer, criterion, device):
     """
     Entraîne le modèle sur un epoch complet.
     Retourne la loss moyenne sur l'epoch.

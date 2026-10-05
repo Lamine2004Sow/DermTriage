@@ -7,10 +7,12 @@ def get_class_weights(df, num_classes=7):
     """
     Calcule les poids de classes inversement proportionnels à leur fréquence.
     À utiliser dans la loss pour gérer le déséquilibre.
+    Une classe sans exemple reçoit un poids 0 (aucun exemple ne l'utilise,
+    et cela évite la division par zéro).
     """
-    counts = df["label"].value_counts().sort_index()
+    counts = df["label"].value_counts().reindex(range(num_classes), fill_value=0)
     total = len(df)
-    weights = total / (num_classes * counts)
+    weights = (total / (num_classes * counts.where(counts > 0))).fillna(0.0)
     return torch.tensor(weights.values, dtype=torch.float32)
 
 
