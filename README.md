@@ -5,37 +5,54 @@
 
 DermTriage est un projet d’apprentissage automatique consacré à l’analyse
 d’images dermatologiques. Le dépôt contient actuellement les briques d’un
-pipeline PyTorch : chargement des images, transformations, entraînement et
-évaluation d’un modèle de classification à sept classes.
+pipeline PyTorch (partitions reproductibles, chargement des images,
+transformations, entraînement et évaluation d’un modèle à sept classes) et des
+baselines de référence.
 
 Le projet reste expérimental. Il ne fournit pas de diagnostic médical et ne
 remplace ni l’avis ni la prise en charge d’un professionnel de santé.
 
 ## Fonctionnalités disponibles
 
-- chargement des images HAM10000 depuis leurs deux répertoires d’origine ;
-- association d’une image à son label à partir d’un `DataFrame` contenant les
-  colonnes `image_id` et `label` ;
+- partitions reproductibles par lésion (`StratifiedGroupKFold`), écrites dans
+  `data/processed/` : `splits.csv`, `train_val.csv` et `test.csv` ;
+- mapping des classes figé dans `src/classes.py`
+  (`akiec, bcc, bkl, df, mel, nv, vasc`), sans `LabelEncoder` ;
+- chargement des images HAM10000, depuis les deux répertoires d’origine ou depuis
+  des copies pré-redimensionnées à 256 px ;
 - transformations d’entraînement et de validation vers des tenseurs
   `3 × 224 × 224`, avec normalisation ImageNet ;
-- boucle d’entraînement PyTorch pour une époque ;
-- évaluation avec la perte, l’exactitude, l’exactitude équilibrée et la
+- boucle d’entraînement PyTorch pour une époque (arguments nommés obligatoires)
+  et évaluation avec la perte, l’exactitude, l’exactitude équilibrée et la
   macro-F1 ;
-- tests unitaires du jeu de données, des transformations et des fonctions
-  d’entraînement.
+- poids de classes robustes à une classe absente ;
+- baselines (classifieur naïf et régression logistique sur des features couleur) ;
+- chronométrage d’une époque ResNet-18 ;
+- tests unitaires, dont des tests sur les partitions réelles.
 
 ## Organisation du dépôt
 
 ```text
 .
 ├── src/
+│   ├── classes.py       # liste figée des classes
 │   ├── dataset.py       # jeu de données PyTorch
 │   ├── train.py         # entraînement et évaluation
-│   └── transforms.py    # prétraitements des images
-├── tests/               # tests unitaires
-├── notes/               # exploration et notes d’expérimentation
-├── requirements.txt     # dépendances Python verrouillées
-└── Makefile             # création de l’environnement et installation
+│   ├── transforms.py    # prétraitements des images
+│   └── utils.py         # poids de classes, métriques, sauvegarde
+├── scripts/
+│   ├── make_splits.py   # partitions : splits.csv, train_val.csv, test.csv
+│   ├── preprocess.py    # copie des images avec le petit côté à 256 px
+│   ├── baselines.py     # baselines sur le fold 0
+│   └── time_epoch.py    # durée d’une époque ResNet-18
+├── tests/               # tests unitaires et tests des partitions
+├── notebooks/           # exploration et baseline d’origine
+├── notes/               # notes d’exploration et de baseline
+├── rapport_data/        # informations structurées par phase pour le rapport
+├── results/             # résultats des expériences (JSON)
+├── requirements.txt     # dépendances d’exécution
+├── requirements-dev.txt # dépendances de développement (pytest, jupyterlab)
+└── Makefile             # commandes du projet
 ```
 
 ## Installation
@@ -49,8 +66,9 @@ cd DermTriage
 make install
 ```
 
-La commande crée l’environnement `.venv`, met `pip` à jour et installe les
-versions définies dans `requirements.txt`.
+La commande crée l’environnement `.venv` et installe `requirements-dev.txt`
+(qui inclut `requirements.txt`). Les versions de `torch` ne sont pas figées :
+`pip` choisit la variante CPU ou GPU adaptée à la machine.
 
 Pour activer ensuite l’environnement :
 
@@ -67,46 +85,80 @@ make clean
 ## Préparer les données
 
 Télécharger HAM10000 séparément — les images ne sont pas versionnées dans ce
-dépôt — puis conserver la structure suivante dans le répertoire de données
-choisi :
+dépôt (`data/` est ignoré par Git) — et placer dans `data/raw/` :
 
 ```text
-<data_dir>/
+data/raw/
+├── HAM10000_metadata.csv
 ├── HAM10000_images_part_1/
 │   └── *.jpg
 └── HAM10000_images_part_2/
     └── *.jpg
 ```
 
-Le tableau transmis à `DermDataset` doit au minimum fournir :
-
-- `image_id` : nom du fichier sans l’extension `.jpg` ;
-- `label` : entier compris entre `0` et `6`.
-
-Le mapping entre les diagnostics d’origine et ces indices doit être préparé en
-amont et rester identique pour tous les sous-ensembles de données.
-
-## Lancer les tests
-
-Depuis la racine du dépôt et dans l’environnement virtuel :
+Puis générer les partitions :
 
 ```bash
-python -m pytest
+make splits
 ```
 
-Les tests vérifient notamment la forme et la normalisation des images, la
-gestion explicite des fichiers absents, la mise à jour des poids pendant
-l’entraînement et le calcul des métriques d’évaluation.
+Colonnes de `splits.csv`, `train_val.csv` et `test.csv` :
+`image_id, lesion_id, dx, label, fold, split`. Le test (`fold = -1`, environ
+10 % des images) est isolé dans `test.csv` : pour développer, ne lire que
+`train_val.csv` (folds 0 à 4).
+
+Les partitions dépendent des versions de scikit-learn et de numpy : sur une autre
+machine, copiez les CSV existants plutôt que de les régénérer, afin d’évaluer
+tous les modèles sur exactement les mêmes images.
+
+Pour pré-redimensionner les images (petit côté à 256 px, dans
+`data/interim/256/`) :
+
+```bash
+make preprocess
+```
+
+`DermDataset` accepte `data/raw` ou `data/interim/256` comme répertoire de données.
+
+## Commandes
+
+| Commande | Rôle |
+|---|---|
+| `make install` | crée `.venv` et installe les dépendances |
+| `make splits` | génère les partitions dans `data/processed/` |
+| `make preprocess` | copie les images à 256 px dans `data/interim/256/` |
+| `make test` | lance les tests |
+| `make baselines` | écrit `results/baselines/fold0.json` (≈ 10 min sur CPU) |
+| `make time-epoch` | mesure la durée d’une époque ResNet-18 sur 20 lots |
+
+Les tests des partitions sont ignorés si `data/processed/splits.csv` est absent.
+
+## Résultats de référence
+
+Baselines, entraînement sur les folds 1 à 4 (7 210 images), validation sur le
+fold 0 (1 803 images) :
+
+| Modèle | Exactitude | Exactitude équilibrée | Macro-F1 |
+|---|---:|---:|---:|
+| Classifieur naïf (classe majoritaire) | 66,94 % | 14,29 % | 11,46 % |
+| Régression logistique (features couleur) | 66,28 % | 22,82 % | 24,36 % |
+
+Durée d’une époque ResNet-18 (7 210 images) : environ 1,2 min sur un GPU Tesla T4
+(Kaggle), environ 15 à 18 min sur CPU.
 
 ## État et prochaines étapes
 
-Les composants de base du pipeline sont présents et couverts par des tests. Le
-projet ne propose pas encore d’application utilisateur ni de dispositif de
-triage clinique complet.
+Le dépôt est assaini (phase 0) : un tiers peut cloner le dépôt, lancer
+`make install && make splits && make test && make baselines` et retrouver les
+valeurs ci-dessus. Le projet ne propose pas encore d’application utilisateur ni
+de dispositif de triage clinique complet.
 
 - [x] Charger et transformer les images HAM10000
 - [x] Implémenter les primitives d’entraînement et d’évaluation
 - [x] Ajouter les premiers tests unitaires
+- [x] Rendre les partitions et le mapping des classes reproductibles
+- [x] Établir des baselines de référence
+- [x] Mesurer le coût de calcul d’une époque
 - [ ] Formaliser le script d’entraînement de bout en bout
 - [ ] Versionner les configurations et les résultats d’expériences
 - [ ] Ajouter une interface d’inférence
@@ -130,7 +182,7 @@ Les contributions sont les bienvenues. Avant de proposer une modification :
 
 1. créez une branche dédiée ;
 2. accompagnez le changement de tests lorsque cela s’applique ;
-3. lancez la suite de tests ;
+3. lancez la suite de tests (`make test`) ;
 4. ouvrez une pull request décrivant le besoin, l’approche et les limites.
 
 Toute contribution liée à la santé doit rester prudente, sourcée et explicite
