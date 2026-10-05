@@ -24,8 +24,9 @@ leur indice. Il échouait avant le correctif (ancien code : 6 poids au lieu de 7
 ## Tests
 38 tests passent (`make test`).
 
-## Reste à faire / à mesurer
-- Chronométrer une époque ResNet-18 sur CPU (estimation du guide : 10 à 20 min).
-  Leviers : GPU gratuit (Kaggle, Colab), cache de features (phase 3).
+## Reste à faire
 - Lancer `make preprocess` et mesurer le gain de temps de chargement.
 - Faire lire `train_val.csv` à l'entraînement et aux baselines.
+- Faire lire les images pré-redimensionnées par `DermDataset`.
+
+Temps d'une époque : voir `04_calcul.md`.

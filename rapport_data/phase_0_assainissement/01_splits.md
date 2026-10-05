@@ -52,3 +52,8 @@ balanced accuracy et du F1 macro.
 - les 7 classes présentes dans chaque fold ;
 - `label == CLASSES.index(dx)` ;
 - colonnes attendues, `image_id` uniques.
+
+## Reproductibilité entre machines
+Rejoué en local après suppression de `data/processed/` : fichiers identiques
+(MD5 : voir `04_calcul.md`). Sur Kaggle, d'autres versions de bibliothèques donnent
+d'autres partitions : les CSV doivent être copiés, pas régénérés.

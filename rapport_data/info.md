@@ -17,7 +17,7 @@ et chiffres exacts.
 
 | Dossier | Contenu |
 |---|---|
-| `phase_0_assainissement/` | Splits reproductibles, baselines, changements de code de la phase 0 |
+| `phase_0_assainissement/` | Splits reproductibles, baselines, changements de code, budget de calcul de la phase 0 |
 
 ## Résultats de référence
 
@@ -25,3 +25,10 @@ et chiffres exacts.
 |---|---:|---|
 | Dummy (classe majoritaire) | 0,1146 | `results/baselines/fold0.json` |
 | Régression logistique (couleur) | 0,2436 | `results/baselines/fold0.json` |
+
+## Budget de calcul
+
+| Machine | Une époque ResNet-18 (7 210 images) |
+|---|---:|
+| Kaggle, Tesla T4 | 1,2 min |
+| Portable, CPU (extrapolé) | ≈ 17,6 min |
