@@ -3,7 +3,8 @@
 Colonnes : image_id, lesion_id, dx, label, fold, split.
 - split "test" : ~10 % des images, fold = -1 ;
 - split "train_val" : le reste, réparti en 5 folds (0 à 4).
-Les partitions sont stratifiées par classe et groupées par lésion.
+Écrit aussi train_val.csv et test.csv (mêmes colonnes) pour ne jamais exposer
+le test par accident. Les partitions sont stratifiées par classe et groupées par lésion.
 Le mapping dx -> label vient de src/classes.py.
 """
 
@@ -21,6 +22,8 @@ from src.classes import CLASS_TO_INDEX  # noqa: E402
 SEED = 42
 METADATA = ROOT / "data/raw/HAM10000_metadata.csv"
 OUTPUT = ROOT / "data/processed/splits.csv"
+TRAIN_VAL_OUTPUT = ROOT / "data/processed/train_val.csv"
+TEST_OUTPUT = ROOT / "data/processed/test.csv"
 
 
 def make_splits(metadata):
@@ -62,6 +65,9 @@ def main():
     )
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     splits.to_csv(OUTPUT, index=False)
+    # Fichiers séparés : on travaille sur train_val.csv sans pouvoir toucher au test.
+    splits[splits["split"] == "train_val"].to_csv(TRAIN_VAL_OUTPUT, index=False)
+    splits[splits["split"] == "test"].to_csv(TEST_OUTPUT, index=False)
 
     print(f"{OUTPUT.relative_to(ROOT)} écrit : {len(splits)} images")
     print(splits.groupby(["split", "fold"]).size().to_string())
