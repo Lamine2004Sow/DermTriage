@@ -52,6 +52,7 @@ remplace ni l’avis ni la prise en charge d’un professionnel de santé.
 │   ├── baselines.py     # baselines sur les 5 folds
 │   ├── train.py         # entraînement d'un fold, écrit runs/<config>/fold<k>_seed<s>/
 │   ├── extract_features.py # E1 : ResNet-18 figé + régression logistique, 5 folds
+│   ├── aggregate.py     # tableau results/comparison.csv de toutes les variantes
 │   ├── make_figures.py  # figures de la phase 3, lues depuis results/
 │   └── time_epoch.py    # durée d’une époque ResNet-18
 ├── configs/             # une configuration YAML par variante (tête, layer4, pondérée, sans augmentations)
@@ -142,6 +143,7 @@ make preprocess
 | `make test` | lance les tests |
 | `make baselines` | écrit `results/baselines/fold{0..4}.json` (≈ 5 min sur CPU) |
 | `make features` | extrait les caractéristiques ResNet-18 figées et écrit `results/resnet18_frozen_logreg/` (≈ 10 min sur CPU, ≈ 2 min sur GPU) |
+| `make aggregate` | agrège tous les résultats dans `results/comparison.csv` (moyenne, écart-type, folds gagnés contre la variante de référence) |
 | `make time-epoch` | mesure la durée d’une époque ResNet-18 sur 20 lots |
 
 ## Entraîner un modèle
@@ -231,7 +233,8 @@ clinique complet.
 - [x] Comparer six variantes sur 5 folds (E1 à E5, baselines) et évaluer H1 à H4
 - [x] Versionner les configurations, les résultats et les figures de la phase 3
 - [ ] Mesurer la variance entre graines (graines 1 et 2 sur la configuration retenue)
-- [ ] Agréger les résultats (`results/comparison.csv`) et rédiger `notes/RESULTS.md`
+- [x] Agréger les résultats dans `results/comparison.csv`
+- [ ] Rédiger `notes/RESULTS.md`
 - [ ] Analyser les erreurs, calibrer et étudier l’abstention (phases 4 et 5)
 - [ ] Évaluer une seule fois sur le jeu de test (phase 6)
 - [ ] Ajouter une interface d’inférence

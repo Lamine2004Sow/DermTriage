@@ -1,0 +1,8 @@
+id,variante,dossier,change_par_rapport_a,changement,n_folds,n_graines,f1_moyenne,f1_ecart_type_folds,f1_ecart_type_graines,balanced_accuracy_moyenne,accuracy_moyenne,ecart_moyen_f1,folds_gagnes,gagne_regle_phase_1,recall_akiec,recall_df,recall_vasc,precision_nv
+B0,Classe majoritaire,baseline:dummy,,,5,1,0.114574,0.000039,,0.142857,0.669477,,,,,,,
+B1,"Régression logistique, 30 features couleur",baseline:logreg,B0,features couleur,5,1,0.260078,0.024346,,0.241563,0.673584,0.145504,5,True,,,,
+E1,ResNet-18 figé + régression logistique,resnet18_frozen_logreg,B1,représentation ImageNet,5,1,0.500550,0.015363,,0.490373,0.731944,0.240472,5,True,0.386441,0.194762,0.631692,0.857405
+E2,"ResNet-18, tête seule",resnet18_head,E1,"tête entraînée, augmentations",5,1,0.507039,0.031549,,0.468511,0.751138,0.006489,3,False,0.386441,0.164286,0.485846,0.857663
+E3,layer4 + tête,resnet18_layer4_rerun,E2,fine-tuning de layer4,5,1,0.660918,0.015661,,0.634432,0.814492,0.153879,5,True,0.501695,0.437143,0.742769,0.896362
+E4,"layer4 + tête, perte pondérée",resnet18_layer4_weighted,E3,poids de classes,5,3,0.653654,0.023975,0.007468,0.697059,0.779247,-0.007264,1,False,0.612429,0.599841,0.843487,0.934493
+E5,"layer4 + tête, sans augmentations",resnet18_layer4_noaug,E3,sans augmentations,5,1,0.625714,0.020808,,0.581274,0.815600,-0.035205,0,False,0.488136,0.271905,0.640923,0.872898
