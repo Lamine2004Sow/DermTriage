@@ -84,15 +84,34 @@ Balanced accuracy : 0.634 (E3) contre 0.581 (E5). Rappel de `df` : 0.437 contre 
 Écart val_loss − train_loss à la meilleure époque : 0.423 (E3) contre 0.634 (E5). Sans augmentations, meilleure
 époque 3 à 6, perte d'entraînement 0.006 à 0.042 : sur-apprentissage rapide.
 
+## E1 — ResNet-18 figé + régression logistique (H1), 5 folds, Kaggle T4, commit `915cea0`
+Commande : `python -m scripts.extract_features --train-val <dermtriage-splits>/train_val.csv --image-dir <interim-256>/256`
+(`scripts/extract_features.py` : 512 caractéristiques par image, transformations de validation, sans augmentation,
+cache `data/features/resnet18_imagenet.npz` non versionné ; `StandardScaler` + `LogisticRegression`, C = 1,0 fixé,
+sans poids de classe). Résultats : `results/resnet18_frozen_logreg/fold{k}_seed0/metrics.json`.
+
+| Fold | E1 macro-F1 | Balanced acc. | Accuracy | B1 logreg couleur | Écart E1 − B1 | E2 tête PyTorch |
+|---|---:|---:|---:|---:|---:|---:|
+| 0 | 0.4941 | 0.4868 | 0.7288 | 0.2436 | +0.2505 | 0.5425 |
+| 1 | 0.4882 | 0.4841 | 0.7255 | 0.2698 | +0.2184 | 0.4581 |
+| 2 | 0.5060 | 0.4916 | 0.7299 | 0.2283 | +0.2777 | 0.5179 |
+| 3 | 0.5246 | 0.5110 | 0.7386 | 0.2683 | +0.2564 | 0.5185 |
+| 4 | 0.4927 | 0.4843 | 0.7370 | 0.2905 | +0.2023 | 0.4982 |
+| Moyenne | 0.5011 | | | 0.2601 | +0.2411 | 0.5070 |
+Écart-type de E1 : 0.0147.
+
+**H1 confirmée sur 5 folds sur 5** (règle de la phase 1) : les caractéristiques ImageNet figées battent les
+caractéristiques couleur de ≈ 0,24 de macro-F1. E2 (tête entraînée avec augmentations) ne bat E1 que sur 3 folds
+sur 5 (+0,006 en moyenne) : l'essentiel du gain vient de la représentation, pas de l'entraînement de la tête.
+C n'a pas été optimisé.
+
 ## Plan restant (guide, phase 3)
-Fait : E2, E3, E4, E5 (5 folds, seed 0), H2, H3, H4 évaluées. Reste : E1 (`scripts/extract_features.py`, pour H1),
-E6 optionnelle (réseau entier), 3 graines sur la configuration retenue (E4 envisagée), `scripts/aggregate.py` →
-`results/comparison.csv`, `notes/RESULTS.md`.
+Fait : E1 à E5 (5 folds, seed 0), H1 à H4 évaluées. Reste : E6 optionnelle (réseau entier), 3 graines sur la
+configuration retenue (E4 envisagée), `scripts/aggregate.py` → `results/comparison.csv`, `notes/RESULTS.md`.
 
 ## Estimation du calcul restant (layer4 mesuré : ≈ 33 s par époque sur T4)
 | Étape | Runs | Kaggle T4 | CPU local |
 |---|---:|---:|---:|
-| E1 | 1 passe avant | ≈ 2 min | ≈ 10 min |
 | 3 graines (graines 1 et 2, 5 folds) | 10 | ≈ 1 h 30 | ≈ 12 h |
 | **Total restant sans E6** | ≈ 10 | **≈ 1 h 30** | **≈ 12 h** |
 | E6 optionnelle | 1 à 5 | + 20 min à 1 h 15 | + 2 h à 10 h |
