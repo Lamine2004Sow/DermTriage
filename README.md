@@ -234,7 +234,7 @@ clinique complet.
 - [x] Versionner les configurations, les résultats et les figures de la phase 3
 - [ ] Mesurer la variance entre graines (graines 1 et 2 sur la configuration retenue)
 - [x] Agréger les résultats dans `results/comparison.csv`
-- [ ] Rédiger `notes/RESULTS.md`
+- [x] Rédiger `notes/RESULTS.md` (verdicts H1 à H4)
 - [ ] Analyser les erreurs, calibrer et étudier l’abstention (phases 4 et 5)
 - [ ] Évaluer une seule fois sur le jeu de test (phase 6)
 - [ ] Ajouter une interface d’inférence
