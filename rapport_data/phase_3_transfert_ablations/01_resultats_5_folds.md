@@ -46,17 +46,53 @@ Commande : `python -m scripts.train --config configs/resnet18_layer4.yaml --fold
 Moyenne E3 : 0.6638647965454513 (écart-type 0.014899075944073036). **5 folds sur 5 gagnés contre E2**, écart moyen ≈ +0,157 : H2 confirmée sur la seed 0 (règle de la phase 1).
 Durée mesurée : ≈ 33 s par époque (moyenne hors première époque), 5 à 11 min par run, ≈ 42 min pour les 5 folds. Première époque du fold 0 : 267 s (démarrage).
 
+## E3 relancé, E4 (perte pondérée), E5 (sans augmentations) — 5 folds, seed 0, Kaggle T4, commit `330a72c`
+Configs : `resnet18_layer4_weighted.yaml` (`class_weights: true`), `resnet18_layer4_noaug.yaml` (`augment: false`).
+Résultats : `results/resnet18_layer4_weighted/`, `results/resnet18_layer4_noaug/`, `results/resnet18_layer4_rerun/`
+(E3 relancé dans la même session que E4 et E5, avec `val_logits.csv` conservés dans `runs/`, non versionné).
+
+**Non-déterminisme entre sessions Kaggle.** E3 relancé (même config, même graine) ≠ E3 d'origine (macro-F1) :
+fold 0 : 0.6594 → 0.6554 ; fold 1 : 0.6494 → 0.6472 ; fold 2 : 0.6517 → 0.6469 ; fold 3 : 0.6831 → 0.6802 ;
+fold 4 : 0.6757 → 0.6748. Écart de 0,001 à 0,005, toujours à la baisse. Cause probable : non-déterminisme GPU
+(non vérifié). Les comparaisons E4/E5 contre E3 utilisent E3 relancé (même session). Moyenne E3 relancé :
+0.6609 (écart-type 0.0157).
+
+| Fold | E3 relancé | E4 pondérée | E5 sans augm. |
+|---|---:|---:|---:|
+| 0 | 0.6554 | 0.6653 | 0.6493 |
+| 1 | 0.6472 | 0.6251 | 0.6108 |
+| 2 | 0.6469 | 0.6360 | 0.6011 |
+| 3 | 0.6802 | 0.6915 | 0.6233 |
+| 4 | 0.6748 | 0.6933 | 0.6441 |
+| Moyenne | 0.6609 | 0.6622 | 0.6257 |
+| Écart-type | 0.0157 | 0.0312 | 0.0208 |
+
+### H3 (E4 contre E3) — confirmée sur la seed 0
+| Critère | E3 | E4 | Folds gagnés par E4 |
+|---|---:|---:|---:|
+| Rappel `akiec` | 0.502 | 0.590 | 4 sur 5 |
+| Rappel `df` | 0.437 | 0.670 | 5 sur 5 |
+| Rappel `vasc` | 0.743 | 0.852 | 5 sur 5 |
+| Précision `nv` | 0.896 | 0.935 | 5 sur 5 |
+Règle du protocole (moyenne en hausse, ≥ 4 folds sur 5) remplie pour les quatre critères. La macro-F1 ne change
+pas (E4 − E3 = +0.0013, E4 gagne 3 folds sur 5) : le gain porte sur les classes rares. Effectifs de validation par
+fold : `df` ≈ 21, `vasc` ≈ 26, `akiec` ≈ 59.
+
+### H4 (E5 contre E3) — confirmée sur la seed 0
+Macro-F1 : E3 gagne 5 folds sur 5, écart moyen −0.0353 pour E5 (−0.006, −0.037, −0.046, −0.057, −0.031).
+Balanced accuracy : 0.634 (E3) contre 0.581 (E5). Rappel de `df` : 0.437 contre 0.272 ; `vasc` : 0.743 contre 0.641.
+Écart val_loss − train_loss à la meilleure époque : 0.423 (E3) contre 0.634 (E5). Sans augmentations, meilleure
+époque 3 à 6, perte d'entraînement 0.006 à 0.042 : sur-apprentissage rapide.
+
 ## Plan restant (guide, phase 3)
-E1 (`scripts/extract_features.py`), E3 fait (voir ci-dessus), E4 (`configs/resnet18_layer4_weighted.yaml`), E5 (`configs/resnet18_layer4_noaug.yaml`), E6 optionnelle (réseau entier), puis `scripts/aggregate.py` →
-`results/comparison.csv` et `notes/RESULTS.md`. Criblage sur le fold 0 (E4, E5), 5 folds pour les
-meilleures variantes, 3 graines pour la configuration retenue.
+Fait : E2, E3, E4, E5 (5 folds, seed 0), H2, H3, H4 évaluées. Reste : E1 (`scripts/extract_features.py`, pour H1),
+E6 optionnelle (réseau entier), 3 graines sur la configuration retenue (E4 envisagée), `scripts/aggregate.py` →
+`results/comparison.csv`, `notes/RESULTS.md`.
 
 ## Estimation du calcul restant (layer4 mesuré : ≈ 33 s par époque sur T4)
 | Étape | Runs | Kaggle T4 | CPU local |
 |---|---:|---:|---:|
 | E1 | 1 passe avant | ≈ 2 min | ≈ 10 min |
-| Criblage fold 0 (E4, E5) | 2 | ≈ 20 min | ≈ 2,5 h |
-| 5 folds pour E4 et E5 (folds 1 à 4) | 8 | ≈ 1 h 10 | ≈ 10 h |
 | 3 graines (graines 1 et 2, 5 folds) | 10 | ≈ 1 h 30 | ≈ 12 h |
-| **Total de base** | ≈ 20 | **≈ 3 h 30** | **≈ 30 h** |
+| **Total restant sans E6** | ≈ 10 | **≈ 1 h 30** | **≈ 12 h** |
 | E6 optionnelle | 1 à 5 | + 20 min à 1 h 15 | + 2 h à 10 h |

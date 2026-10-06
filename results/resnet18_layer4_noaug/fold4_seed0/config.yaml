@@ -1,0 +1,21 @@
+name: resnet18_layer4_noaug
+model:
+  arch: resnet18
+  pretrained: true
+  trainable: layer4
+optim:
+  name: adamw
+  lr: 0.0001
+  weight_decay: 0.0001
+train:
+  epochs: 20
+  batch_size: 64
+  patience: 4
+loss:
+  class_weights: false
+augment: false
+image_dir: /kaggle/input/datasets/lamine04sow/interim-256/256
+fold: 4
+seed: 0
+git_commit: 330a72c0044e13434be10c4082e85655425e1d21
+limit: null

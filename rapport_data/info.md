@@ -29,7 +29,7 @@ et chiffres exacts.
 | Dummy (classe majoritaire) | 0,1146 | 0,1146 | `results/baselines/fold{0..4}.json` |
 | Régression logistique (couleur) | 0,2436 | 0,2601 | `results/baselines/fold{0..4}.json` |
 | ResNet-18 tête seule | 0,5425 | 0,5070 | `results/resnet18_head/fold{0..4}_seed0/metrics.json` |
-| ResNet-18 `layer4` + tête | 0,6594 | 0,6639 | `results/resnet18_layer4/fold{0..4}_seed0/metrics.json` |
+| ResNet-18 `layer4` + tête | 0,6594 | 0,6639 (relancé : 0,6609) | `results/resnet18_layer4/fold{0..4}_seed0/metrics.json` |
 
 ## Budget de calcul
 
