@@ -1,0 +1,21 @@
+name: resnet18_head
+model:
+  arch: resnet18
+  pretrained: true
+  trainable: head
+optim:
+  name: adamw
+  lr: 0.001
+  weight_decay: 0.0001
+train:
+  epochs: 20
+  batch_size: 64
+  patience: 4
+loss:
+  class_weights: false
+augment: true
+image_dir: /home/zeyrox/Bureau/project/DermTriage/data/interim/256
+fold: 2
+seed: 0
+git_commit: 1406e2f40fd1fc42196b6c3c471bbbdf1b9f3ae4
+limit: null

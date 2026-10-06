@@ -44,7 +44,7 @@ remplace ni l’avis ni la prise en charge d’un professionnel de santé.
 ├── scripts/
 │   ├── make_splits.py   # partitions : splits.csv, train_val.csv, test.csv
 │   ├── preprocess.py    # copie des images avec le petit côté à 256 px
-│   ├── baselines.py     # baselines sur le fold 0
+│   ├── baselines.py     # baselines sur les 5 folds
 │   ├── train.py         # entraînement d'un fold, écrit runs/<config>/fold<k>_seed<s>/
 │   └── time_epoch.py    # durée d’une époque ResNet-18
 ├── configs/             # une configuration YAML par variante
@@ -132,7 +132,7 @@ make preprocess
 | `make splits` | génère les partitions dans `data/processed/` |
 | `make preprocess` | copie les images à 256 px dans `data/interim/256/` |
 | `make test` | lance les tests |
-| `make baselines` | écrit `results/baselines/fold0.json` (≈ 10 min sur CPU) |
+| `make baselines` | écrit `results/baselines/fold{0..4}.json` (≈ 5 min sur CPU) |
 | `make time-epoch` | mesure la durée d’une époque ResNet-18 sur 20 lots |
 
 ## Entraîner un modèle

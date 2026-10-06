@@ -1,7 +1,7 @@
 """Baselines (DummyClassifier et régression logistique sur features couleur).
 
-Lit data/processed/train_val.csv (le test n'est jamais chargé), entraîne sur les folds 1 à 4, valide sur le
-fold 0 et écrit results/baselines/fold0.json.
+Lit data/processed/train_val.csv (le test n'est jamais chargé). Pour chaque fold k, entraîne sur les autres
+folds, valide sur le fold k et écrit results/baselines/fold{k}.json.
 """
 
 import json
@@ -22,8 +22,7 @@ sys.path.insert(0, str(ROOT))
 from src.utils import compute_metrics  # noqa: E402
 
 TRAIN_VAL = ROOT / "data/processed/train_val.csv"
-OUTPUT = ROOT / "results/baselines/fold0.json"
-VAL_FOLD = 0
+OUTPUT_DIR = ROOT / "results/baselines"
 SEED = 42
 
 
@@ -48,8 +47,6 @@ def extract_features(image_path):
 def main():
     train_val = pd.read_csv(TRAIN_VAL)
     assert (train_val["split"] == "train_val").all()
-    train_df = train_val[train_val["fold"] != VAL_FOLD]
-    val_df = train_val[train_val["fold"] == VAL_FOLD]
 
     image_paths = {
         path.stem: path
@@ -60,32 +57,33 @@ def main():
     if missing:
         raise FileNotFoundError(f"{len(missing)} image(s) introuvable(s)")
 
-    y_train = train_df["label"].to_numpy()
-    y_val = val_df["label"].to_numpy()
+    all_features = np.vstack([extract_features(image_paths[i]) for i in train_val["image_id"]])
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    dummy = DummyClassifier(strategy="most_frequent")
-    dummy.fit(np.zeros((len(train_df), 1)), y_train)
-    dummy_metrics = compute_metrics(y_val, dummy.predict(np.zeros((len(val_df), 1))))
+    for val_fold in sorted(train_val["fold"].unique()):
+        is_val = (train_val["fold"] == val_fold).to_numpy()
+        y_train = train_val.loc[~is_val, "label"].to_numpy()
+        y_val = train_val.loc[is_val, "label"].to_numpy()
 
-    def features(df):
-        return np.vstack([extract_features(image_paths[i]) for i in df["image_id"]])
+        dummy = DummyClassifier(strategy="most_frequent")
+        dummy.fit(np.zeros((len(y_train), 1)), y_train)
+        dummy_metrics = compute_metrics(y_val, dummy.predict(np.zeros((len(y_val), 1))))
 
-    color_model = make_pipeline(
-        StandardScaler(), LogisticRegression(max_iter=1000, random_state=SEED)
-    )
-    color_model.fit(features(train_df), y_train)
-    logreg_metrics = compute_metrics(y_val, color_model.predict(features(val_df)))
+        color_model = make_pipeline(
+            StandardScaler(), LogisticRegression(max_iter=1000, random_state=SEED)
+        )
+        color_model.fit(all_features[~is_val], y_train)
+        logreg_metrics = compute_metrics(y_val, color_model.predict(all_features[is_val]))
 
-    results = {
-        "val_fold": VAL_FOLD,
-        "n_train": len(train_df),
-        "n_val": len(val_df),
-        "dummy": {k: float(v) for k, v in dummy_metrics.items()},
-        "logreg": {k: float(v) for k, v in logreg_metrics.items()},
-    }
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(json.dumps(results, indent=2) + "\n")
-    print(json.dumps(results, indent=2))
+        results = {
+            "val_fold": int(val_fold),
+            "n_train": len(y_train),
+            "n_val": len(y_val),
+            "dummy": {k: float(v) for k, v in dummy_metrics.items()},
+            "logreg": {k: float(v) for k, v in logreg_metrics.items()},
+        }
+        (OUTPUT_DIR / f"fold{val_fold}.json").write_text(json.dumps(results, indent=2) + "\n")
+        print(json.dumps(results, indent=2))
 
 
 if __name__ == "__main__":
