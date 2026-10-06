@@ -111,13 +111,42 @@ caractéristiques couleur de ≈ 0,24 de macro-F1. E2 (tête entraînée avec au
 sur 5 (≈ +0,007 en moyenne) : l'essentiel du gain vient de la représentation, pas de l'entraînement de la tête.
 C n'a pas été optimisé.
 
+## E4 sur 3 graines (0, 1, 2) — 5 folds, Kaggle T4, commit `f5e1ab7`
+Commande : `python -m scripts.train --config configs/resnet18_layer4_weighted.yaml --fold k --seed s` (s = 1, 2),
+résultats dans `results/resnet18_layer4_weighted/fold{k}_seed{s}/` (avec `val_logits.csv`). La graine 0 vient d'une
+autre session Kaggle que les graines 1 et 2.
+
+| Graine | Macro-F1 moyenne (5 folds) | Folds 0 / 1 / 2 / 3 / 4 |
+|---|---:|---|
+| 0 | 0.6622 | 0.6653 / 0.6251 / 0.6360 / 0.6915 / 0.6933 |
+| 1 | 0.6487 | 0.6444 / 0.6174 / 0.6334 / 0.6775 / 0.6708 |
+| 2 | 0.6500 | 0.6677 / 0.6328 / 0.6283 / 0.6704 / 0.6509 |
+| Moyenne des 3 graines | 0.6537 | |
+
+**Variances.** Entre folds (moyenne des 3 graines) : écart-type 0.024. Entre graines (écart-type des 3 moyennes
+sur 5 folds) : 0.0075. Aléa d'entraînement à fold fixe : écart-type moyen 0.011. Le bruit d'entraînement par fold
+dépasse l'écart de macro-F1 E4 − E3 observé sur la graine 0 (+0.0013) : aucun gain de macro-F1 de E4 n'est démontré
+(E3 n'a qu'une graine ; E4 vaut 0.649 et 0.650 avec les graines 1 et 2, contre 0.661 pour E3).
+
+**H3 par graine (E4 contre E3 graine 0, folds gagnés sur 5) :**
+| Critère | E3 | E4 graine 0 | E4 graine 1 | E4 graine 2 | E4 moyenne des 3 graines |
+|---|---:|---:|---:|---:|---:|
+| Rappel `akiec` | 0.502 | 0.590 (4) | 0.658 (5) | 0.590 (5) | 0.612 (5) |
+| Rappel `df` | 0.437 | 0.670 (5) | 0.506 (4) | 0.624 (4) | 0.600 (5) |
+| Rappel `vasc` | 0.743 | 0.852 (5) | 0.859 (5) | 0.820 (4) | 0.843 (5) |
+| Précision `nv` | 0.896 | 0.935 (5) | 0.933 (5) | 0.935 (5) | 0.934 (5) |
+H3 reste confirmée (moyenne en hausse, ≥ 4 folds sur 5) pour les quatre critères avec chacune des trois graines, et
+avec la moyenne des graines. Le rappel de `df` varie beaucoup d'une graine à l'autre (0.506 à 0.670, écart-type
+0.084 : ≈ 21 images par fold). Limite : E3 n'a qu'une graine, la comparaison n'est pas symétrique.
+
 ## Plan restant (guide, phase 3)
-Fait : E1 à E5 (5 folds, seed 0), H1 à H4 évaluées. Reste : E6 optionnelle (réseau entier), 3 graines sur la
-configuration retenue (E4 envisagée), `scripts/aggregate.py` → `results/comparison.csv`, `notes/RESULTS.md`.
+Fait : E1 à E5 (5 folds, graine 0), E4 sur 3 graines, H1 à H4 évaluées. Reste : `scripts/aggregate.py` →
+`results/comparison.csv`, `notes/RESULTS.md`, éventuellement les graines 1 et 2 de E3 pour une comparaison
+symétrique (≈ 1 h 30 sur Kaggle) et E6 optionnelle (réseau entier).
 
 ## Estimation du calcul restant (layer4 mesuré : ≈ 33 s par époque sur T4)
 | Étape | Runs | Kaggle T4 | CPU local |
 |---|---:|---:|---:|
-| 3 graines (graines 1 et 2, 5 folds) | 10 | ≈ 1 h 30 | ≈ 12 h |
+| Graines 1 et 2 de E3 (optionnel) | 10 | ≈ 1 h 30 | ≈ 12 h |
 | **Total restant sans E6** | ≈ 10 | **≈ 1 h 30** | **≈ 12 h** |
 | E6 optionnelle | 1 à 5 | + 20 min à 1 h 15 | + 2 h à 10 h |

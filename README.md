@@ -192,7 +192,7 @@ partitions identiques pour toutes les variantes :
 | E1 · ResNet-18 figé + régression logistique | 0,501 | 0,015 |
 | E2 · ResNet-18, tête seule | 0,507 | 0,032 |
 | E3 · `layer4` + tête | 0,661 | 0,016 |
-| E4 · E3 avec perte pondérée | 0,662 | 0,031 |
+| E4 · E3 avec perte pondérée | 0,662 (graine 0) ; 0,654 sur 3 graines | 0,031 |
 | E5 · E3 sans augmentations | 0,626 | 0,021 |
 
 Sur la graine 0, avec la règle du protocole (moyenne en hausse et au moins 4 folds sur 5) :
@@ -203,7 +203,7 @@ Sur la graine 0, avec la règle du protocole (moyenne en hausse et au moins 4 fo
   et la précision de `nv`, sans gain de macro-F1 ;
 - **H4** (augmentations) : confirmée, 5 folds sur 5, environ +0,035 de macro-F1.
 
-Ces résultats portent sur une seule graine : l’écart entre graines n’est pas encore mesuré.
+Ces résultats portent sur la graine 0. Pour E4, 3 graines donnent un écart-type de 0,0075 entre graines (0,024 entre folds) ; E3 n’a qu’une graine.
 Les exécutions sur GPU Kaggle ne sont pas reproductibles à l’identique d’une session à
 l’autre (E3 relancé : −0,001 à −0,005 de macro-F1), contrairement à deux lancements sur la
 même machine. Détails, tableaux par fold et commandes : `rapport_data/phase_3_transfert_ablations/`.
