@@ -4,10 +4,10 @@
 > HAM10000.
 
 DermTriage est un projet d’apprentissage automatique consacré à l’analyse
-d’images dermatologiques. Le dépôt contient actuellement les briques d’un
-pipeline PyTorch (partitions reproductibles, chargement des images,
-transformations, entraînement et évaluation d’un modèle à sept classes) et des
-baselines de référence.
+d’images dermatologiques. Le dépôt contient un pipeline PyTorch complet
+(partitions reproductibles, chargement des images, entraînement et évaluation
+d’un ResNet-18 à sept classes), des baselines, six variantes expérimentales
+comparées sur 5 folds et les scripts qui régénèrent les tableaux et les figures.
 
 Le projet reste expérimental. Il ne fournit pas de diagnostic médical et ne
 remplace ni l’avis ni la prise en charge d’un professionnel de santé.
@@ -27,8 +27,13 @@ remplace ni l’avis ni la prise en charge d’un professionnel de santé.
   macro-F1 ;
 - poids de classes robustes à une classe absente ;
 - baselines (classifieur naïf et régression logistique sur des features couleur) ;
+- script d’entraînement reproductible d’un fold (`scripts/train.py`), configurations
+  YAML par variante, arrêt précoce sur la macro-F1 de validation ;
+- ResNet-18 figé comme extracteur de caractéristiques (512 dimensions, mises en
+  cache) suivi d’une régression logistique (`scripts/extract_features.py`) ;
+- figures de la phase 3 reconstruites à partir de `results/` (`scripts/make_figures.py`) ;
 - chronométrage d’une époque ResNet-18 ;
-- tests unitaires, dont des tests sur les partitions réelles.
+- tests unitaires (55), dont des tests sur les partitions réelles.
 
 ## Organisation du dépôt
 
@@ -46,14 +51,17 @@ remplace ni l’avis ni la prise en charge d’un professionnel de santé.
 │   ├── preprocess.py    # copie des images avec le petit côté à 256 px
 │   ├── baselines.py     # baselines sur les 5 folds
 │   ├── train.py         # entraînement d'un fold, écrit runs/<config>/fold<k>_seed<s>/
+│   ├── extract_features.py # E1 : ResNet-18 figé + régression logistique, 5 folds
+│   ├── make_figures.py  # figures de la phase 3, lues depuis results/
 │   └── time_epoch.py    # durée d’une époque ResNet-18
-├── configs/             # une configuration YAML par variante
+├── configs/             # une configuration YAML par variante (tête, layer4, pondérée, sans augmentations)
 ├── tests/               # tests unitaires et tests des partitions
-├── notebooks/           # exploration et baseline d’origine
-├── notes/               # notes d’exploration et de baseline
+├── notebooks/           # exploration, baseline d’origine et prototype d’entraînement
+├── notes/               # notes d’exploration, de baseline et protocole expérimental
 ├── rapport_data/        # informations structurées par phase pour le rapport
-├── results/             # résultats des baselines (JSON)
-├── runs/                # résultats des entraînements (non versionné)
+├── results/             # métriques, historiques et logits de validation par variante et par fold
+├── figures/             # figures de la phase 3 (PNG)
+├── runs/                # sorties brutes des entraînements, dont les poids (non versionné)
 ├── requirements.txt     # dépendances d’exécution
 ├── requirements-dev.txt # dépendances de développement (pytest, jupyterlab)
 └── Makefile             # commandes du projet
@@ -133,6 +141,7 @@ make preprocess
 | `make preprocess` | copie les images à 256 px dans `data/interim/256/` |
 | `make test` | lance les tests |
 | `make baselines` | écrit `results/baselines/fold{0..4}.json` (≈ 5 min sur CPU) |
+| `make features` | extrait les caractéristiques ResNet-18 figées et écrit `results/resnet18_frozen_logreg/` (≈ 10 min sur CPU, ≈ 2 min sur GPU) |
 | `make time-epoch` | mesure la durée d’une époque ResNet-18 sur 20 lots |
 
 ## Entraîner un modèle
@@ -156,34 +165,59 @@ sauvegardés pour calibrer et évaluer l'abstention sans réentraîner. Un GPU e
 conseillé (une époque ≈ 0,6 min sur T4 avec les images à 256 px). L'option `--limit N`
 permet un contrôle rapide, dont les résultats ne sont pas valides.
 
+Variantes disponibles (une seule différence entre deux variantes voisines) :
+
+| Config | Variante |
+|---|---|
+| `resnet18_head.yaml` | tête seule, avec augmentations (E2) |
+| `resnet18_layer4.yaml` | `layer4` + tête, lr 1e-4 (E3) |
+| `resnet18_layer4_weighted.yaml` | E3 avec perte pondérée par les poids de classes (E4) |
+| `resnet18_layer4_noaug.yaml` | E3 sans augmentations (E5) |
+
 Le protocole expérimental (hypothèses, usage des données, règle de décision) est
-fixé dans `notes/PROTOCOL.md`.
+fixé dans `notes/PROTOCOL.md`. Les figures se régénèrent avec
+`python -m scripts.make_figures`.
 
 Les tests des partitions sont ignorés si `data/processed/splits.csv` est absent.
 
-## Résultats de référence
+## Résultats
 
-Baselines, entraînement sur les folds 1 à 4 (7 210 images), validation sur le
-fold 0 (1 803 images) :
+Macro-F1 de validation, moyenne des 5 folds (graine 0) ; un fold = environ 1 800 images,
+partitions identiques pour toutes les variantes :
 
-| Modèle | Exactitude | Exactitude équilibrée | Macro-F1 |
-|---|---:|---:|---:|
-| Classifieur naïf (classe majoritaire) | 66,94 % | 14,29 % | 11,46 % |
-| Régression logistique (features couleur) | 66,28 % | 22,82 % | 24,36 % |
+| Variante | Macro-F1 moyenne | Écart-type entre folds |
+|---|---:|---:|
+| B0 · classe majoritaire | 0,115 | 0,000 |
+| B1 · régression logistique sur 30 features couleur | 0,260 | 0,024 |
+| E1 · ResNet-18 figé + régression logistique | 0,501 | 0,015 |
+| E2 · ResNet-18, tête seule | 0,507 | 0,032 |
+| E3 · `layer4` + tête | 0,661 | 0,016 |
+| E4 · E3 avec perte pondérée | 0,662 | 0,031 |
+| E5 · E3 sans augmentations | 0,626 | 0,021 |
 
-ResNet-18 tête seule (`configs/resnet18_head.yaml`), fold 0, seed 0 : macro-F1 de validation
-0,5425 (résultat provisoire sur un seul fold, relancé à l’identique avec les mêmes sorties ;
-`results/resnet18_head/fold0_seed0/`).
+Sur la graine 0, avec la règle du protocole (moyenne en hausse et au moins 4 folds sur 5) :
+
+- **H1** (caractéristiques ImageNet contre couleurs) : confirmée, 5 folds sur 5, environ +0,24 de macro-F1 ;
+- **H2** (adapter `layer4`) : confirmée, 5 folds sur 5, environ +0,15 contre la tête seule ;
+- **H3** (perte pondérée) : confirmée sur les classes rares (rappel de `df`, `vasc`, `akiec`)
+  et la précision de `nv`, sans gain de macro-F1 ;
+- **H4** (augmentations) : confirmée, 5 folds sur 5, environ +0,035 de macro-F1.
+
+Ces résultats portent sur une seule graine : l’écart entre graines n’est pas encore mesuré.
+Les exécutions sur GPU Kaggle ne sont pas reproductibles à l’identique d’une session à
+l’autre (E3 relancé : −0,001 à −0,005 de macro-F1), contrairement à deux lancements sur la
+même machine. Détails, tableaux par fold et commandes : `rapport_data/phase_3_transfert_ablations/`.
 
 Durée d’une époque ResNet-18 (7 210 images) : environ 0,6 min sur un GPU Tesla T4
 (Kaggle, images à 256 px ; 1,2 min avec les JPEG d’origine), environ 15 à 18 min sur CPU.
 
 ## État et prochaines étapes
 
-Le dépôt est assaini (phase 0) : un tiers peut cloner le dépôt, lancer
-`make install && make splits && make test && make baselines` et retrouver les
-valeurs ci-dessus. Le projet ne propose pas encore d’application utilisateur ni
-de dispositif de triage clinique complet.
+Les phases 0 à 2 (assainissement, protocole, entraînement reproductible) sont terminées ;
+la phase 3 (transfert et ablations) est en cours. Un tiers peut cloner le dépôt, lancer
+`make install && make splits && make test && make baselines` et retrouver les baselines.
+Le projet ne propose pas encore d’application utilisateur ni de dispositif de triage
+clinique complet.
 
 - [x] Charger et transformer les images HAM10000
 - [x] Implémenter les primitives d’entraînement et d’évaluation
@@ -194,7 +228,12 @@ de dispositif de triage clinique complet.
 - [x] Écrire le protocole expérimental (`notes/PROTOCOL.md`)
 - [x] Écrire le script d’entraînement reproductible et ses tests
 - [x] Valider l’entraînement complet du fold 0 et sa reproductibilité
-- [ ] Versionner les configurations et les résultats d’expériences
+- [x] Comparer six variantes sur 5 folds (E1 à E5, baselines) et évaluer H1 à H4
+- [x] Versionner les configurations, les résultats et les figures de la phase 3
+- [ ] Mesurer la variance entre graines (graines 1 et 2 sur la configuration retenue)
+- [ ] Agréger les résultats (`results/comparison.csv`) et rédiger `notes/RESULTS.md`
+- [ ] Analyser les erreurs, calibrer et étudier l’abstention (phases 4 et 5)
+- [ ] Évaluer une seule fois sur le jeu de test (phase 6)
 - [ ] Ajouter une interface d’inférence
 - [ ] Documenter les performances, les biais et les limites du modèle
 - [ ] Réaliser une validation clinique avant tout usage réel
