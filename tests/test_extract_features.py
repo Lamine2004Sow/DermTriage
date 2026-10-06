@@ -51,6 +51,9 @@ def test_ecrit_cache_et_metriques_par_fold(mini):
         metrics = json.loads((tmp / "out" / f"fold{fold}_seed0" / "metrics.json").read_text())
         assert {"fold", "n_train", "n_val", "accuracy", "balanced_accuracy", "f1"} <= metrics.keys()
         assert metrics["n_val"] == 14
+        logits = pd.read_csv(tmp / "out" / f"fold{fold}_seed0" / "val_logits.csv")
+        assert list(logits.columns) == ["image_id", "lesion_id", "label"] + [f"logit_{i}" for i in range(7)]
+        assert len(logits) == 14
 
 
 def test_deuxieme_lancement_relit_le_cache(mini, capsys):

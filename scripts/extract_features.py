@@ -6,7 +6,8 @@ Le réseau est figé et les images ne sont pas augmentées : la sortie de 512 di
 toujours la même. Elle est donc calculée une seule fois (data/features/resnet18_imagenet.npz), puis une
 régression logistique est entraînée sur chaque fold (les 4 autres folds pour apprendre, le fold k pour valider).
 
-Écrit results/resnet18_frozen_logreg/fold<k>_seed0/metrics.json (même format que les runs d'entraînement).
+Écrit results/resnet18_frozen_logreg/fold<k>_seed0/{metrics.json, val_logits.csv} (même format que les runs
+d'entraînement ; les logits sont les scores de decision_function de la régression logistique).
 Seul train_val.csv est lu : le test n'est jamais chargé.
 """
 
@@ -84,12 +85,16 @@ def evaluate_folds(train_val, features, *, C, out_dir):
             StandardScaler(), LogisticRegression(C=C, max_iter=1000, random_state=SEED)
         )
         model.fit(features[~is_val], labels[~is_val])
-        metrics = {k: float(v) for k, v in compute_metrics(labels[is_val], model.predict(features[is_val])).items()}
+        scores = model.decision_function(features[is_val])
+        metrics = {k: float(v) for k, v in compute_metrics(labels[is_val], scores.argmax(axis=1)).items()}
         result = {"fold": int(fold), "seed": 0, "n_train": int((~is_val).sum()), "n_val": int(is_val.sum()),
                   "C": C, **metrics}
         fold_dir = Path(out_dir) / f"fold{fold}_seed0"
         fold_dir.mkdir(parents=True, exist_ok=True)
         (fold_dir / "metrics.json").write_text(json.dumps(result, indent=2) + "\n")
+        logits = train_val.loc[is_val, ["image_id", "lesion_id", "label"]].reset_index(drop=True)
+        logits[[f"logit_{i}" for i in range(scores.shape[1])]] = scores
+        logits.to_csv(fold_dir / "val_logits.csv", index=False)
         print(f"fold {fold} : macro-F1 {metrics['f1']:.4f}")
         results.append(result)
     return results

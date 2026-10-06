@@ -92,17 +92,23 @@ sans poids de classe). Résultats : `results/resnet18_frozen_logreg/fold{k}_seed
 
 | Fold | E1 macro-F1 | Balanced acc. | Accuracy | B1 logreg couleur | Écart E1 − B1 | E2 tête PyTorch |
 |---|---:|---:|---:|---:|---:|---:|
-| 0 | 0.4941 | 0.4868 | 0.7288 | 0.2436 | +0.2505 | 0.5425 |
-| 1 | 0.4882 | 0.4841 | 0.7255 | 0.2698 | +0.2184 | 0.4581 |
-| 2 | 0.5060 | 0.4916 | 0.7299 | 0.2283 | +0.2777 | 0.5179 |
+| 0 | 0.4936 | 0.4823 | 0.7299 | 0.2436 | +0.2500 | 0.5425 |
+| 1 | 0.4858 | 0.4827 | 0.7243 | 0.2698 | +0.2159 | 0.4581 |
+| 2 | 0.5062 | 0.4917 | 0.7304 | 0.2283 | +0.2780 | 0.5179 |
 | 3 | 0.5246 | 0.5110 | 0.7386 | 0.2683 | +0.2564 | 0.5185 |
-| 4 | 0.4927 | 0.4843 | 0.7370 | 0.2905 | +0.2023 | 0.4982 |
-| Moyenne | 0.5011 | | | 0.2601 | +0.2411 | 0.5070 |
-Écart-type de E1 : 0.0147.
+| 4 | 0.4925 | 0.4841 | 0.7364 | 0.2905 | +0.2021 | 0.4982 |
+| Moyenne | 0.5006 | | | 0.2601 | +0.2405 | 0.5070 |
+Écart-type de E1 : 0.0154.
+
+**Valeurs finales = recalcul local depuis le cache** (commit suivant `6a5d14b`, scikit-learn 1.9.1, numpy 2.5.3),
+qui a ajouté `val_logits.csv` (scores `decision_function`, même format que les runs d'entraînement). La première
+exécution sur Kaggle avait donné 0.4941, 0.4882, 0.5060, 0.5246, 0.4927 (moyenne 0.5011) : le même modèle ajusté
+avec des versions de bibliothèques différentes diffère de 0 à 0,0024 par fold (régression logistique lbfgs).
+Les caractéristiques proviennent du même cache (calculé sur Kaggle T4).
 
 **H1 confirmée sur 5 folds sur 5** (règle de la phase 1) : les caractéristiques ImageNet figées battent les
 caractéristiques couleur de ≈ 0,24 de macro-F1. E2 (tête entraînée avec augmentations) ne bat E1 que sur 3 folds
-sur 5 (+0,006 en moyenne) : l'essentiel du gain vient de la représentation, pas de l'entraînement de la tête.
+sur 5 (≈ +0,007 en moyenne) : l'essentiel du gain vient de la représentation, pas de l'entraînement de la tête.
 C n'a pas été optimisé.
 
 ## Plan restant (guide, phase 3)
