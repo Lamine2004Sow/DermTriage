@@ -1,0 +1,7 @@
+name: resnet18_layer4_weighted
+model: {arch: resnet18, pretrained: true, trainable: layer4}
+optim: {name: adamw, lr: 1.0e-4, weight_decay: 1.0e-4}
+train: {epochs: 20, batch_size: 64, patience: 4}
+loss: {class_weights: true}
+augment: true
+image_dir: data/interim/256
