@@ -3,7 +3,7 @@ VENV ?= .venv
 VPY := $(VENV)/bin/python
 PIP := $(VPY) -m pip
 
-.PHONY: install splits preprocess test baselines time-epoch clean
+.PHONY: install splits preprocess test baselines features time-epoch clean
 
 install: $(VENV)/bin/python
 	$(PIP) install --upgrade pip
@@ -23,6 +23,9 @@ test:
 
 baselines:
 	$(VPY) scripts/baselines.py
+
+features:
+	$(VPY) -m scripts.extract_features
 
 time-epoch:
 	$(VPY) scripts/time_epoch.py --max-batches 20
