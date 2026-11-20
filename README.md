@@ -63,14 +63,15 @@ remplace ni l’avis ni la prise en charge d’un professionnel de santé.
 ├── results/             # métriques, historiques et logits de validation par variante et par fold
 ├── figures/             # figures de la phase 3 (PNG)
 ├── runs/                # sorties brutes des entraînements, dont les poids (non versionné)
-├── couteau_suisse_dermtriage.md # aide-mémoire des outils du projet (phases 0 à 3)
+├── couteau_suisse_dermtriage.md # aide-mémoire des outils du projet et des réseaux de neurones
 ├── requirements.txt     # dépendances d’exécution
 ├── requirements-dev.txt # dépendances de développement (pytest, jupyterlab)
 └── Makefile             # commandes du projet
 ```
 
 Pour comprendre la logique de chaque étape (partitions par lésion, macro-F1, gel des couches, pondération,
-comparaison appariée...), voir [`couteau_suisse_dermtriage.md`](couteau_suisse_dermtriage.md) : un outil par
+comparaison appariée...) et le fonctionnement d'un réseau (couches, softmax, rétropropagation, convolution,
+pooling, ResNet-18), voir [`couteau_suisse_dermtriage.md`](couteau_suisse_dermtriage.md) : un outil par
 section, avec un schéma, le pourquoi, le code expliqué, les résultats mesurés et les pièges.
 
 ## Installation

@@ -1,9 +1,11 @@
-# Couteau suisse — DermTriage (phase 0 → phase 3)
+# Couteau suisse — DermTriage (phase 0 → phase 3, + cours réseaux de neurones et convolutions)
 
 Pour chaque outil : **l'idée en une phrase**, **un schéma**, **pourquoi ça marche**, **le code**, **les pièges**.
 Le code vient de `src/` (bibliothèque du projet) et de `scripts/` (une commande par étape).
 Sources : le sujet (`guide_new_version.md`), le protocole (`notes/PROTOCOL.md`), les notes de phase
 (`rapport_data/`), la documentation scikit-learn et PyTorch citée dans le guide.
+Les sections 18 à 24 expliquent **comment marche un réseau** d'après les deux cours de J. Le Roux (`RNP.pdf`,
+`convolutions.pdf`) : on peut les lire **avant** les sections 7 à 12 si les réseaux de neurones sont nouveaux.
 Les chiffres viennent des fichiers de `results/` ou ont été **mesurés en relançant le code** (marqués « mesuré »).
 Ce qui est **déduit** (raisonnement, pas mesure) est écrit comme tel.
 
@@ -35,6 +37,16 @@ Ce qui est **déduit** (raisonnement, pas mesure) est écrit comme tel.
 | Voir **quelles classes** le modèle confond | matrice de confusion normalisée, rappel | 15 | [→ Erreurs par classe](#s15) |
 | Savoir **combien coûte** une époque avant de lancer | `time_epoch.py` + `LimitedLoader` | 16 | [→ Chronométrer](#s16) |
 | **Tout refaire** de HAM10000 à `comparison.csv` | chaîne complète | 17 | [→ Chaîne complète](#s17) |
+| Comprendre ce qu'est un **réseau de neurones** (couches, activations) | MLP : affine + non-linéarité | 18 | [→ Réseau de neurones](#s18) |
+| Savoir pourquoi il faut une **non-linéarité** (XOR) | activation entre les couches | 18 | [→ Réseau de neurones](#s18) |
+| Transformer des scores en **probabilités** | softmax | 19 | [→ Softmax](#s19) |
+| Comprendre la **cross-entropy** et `CrossEntropyLoss` | log-vraisemblance négative | 19 | [→ Softmax](#s19) |
+| Comprendre comment les poids **apprennent** (lr, lots, Adam) | descente de gradient stochastique | 20 | [→ Gradient](#s20) |
+| Comprendre ce que fait **`loss.backward()`** | rétropropagation, graphe de calcul | 21 | [→ Rétropropagation](#s21) |
+| Comprendre une **convolution** (filtre, canaux, padding) | `Conv2d` | 22 | [→ Convolution](#s22) |
+| Calculer la **taille de sortie** d'une couche | `n − k + 1`, padding, stride | 22 | [→ Convolution](#s22) |
+| Comprendre le **pooling** et le **champ récepteur** | `MaxPool2d`, empilement | 23 | [→ Pooling](#s23) |
+| Suivre une image **dans ResNet-18** couche par couche | volumes, blocs résiduels, BatchNorm | 24 | [→ ResNet-18](#s24) |
 
 Pas encore codé (pas de section, à ajouter quand le code existera) : bootstrap par lésion (phase 4),
 *temperature scaling* et abstention (phase 5, H5 et H6), lecture du test (phase 6), variante E6 (réseau entier).
@@ -176,7 +188,7 @@ splits[splits["split"] == "test"].to_csv(TEST_OUTPUT, index=False)              
 - **Régénérer les partitions sur une autre machine** : sur Kaggle, mêmes métadonnées (même MD5) mais partitions
   **différentes** (`2f975107…` contre `132c1875…`), à cause de la version de scikit-learn ou numpy.
   → On **copie** les CSV, on ne les régénère pas ; MD5 de référence dans
-  `rapport_data/phase_0_assainissement/04_calcul.md` ([section Rendu](#s18)).
+  `rapport_data/phase_0_assainissement/04_calcul.md` ([section Rendu](#s25)).
 - **Lire `splits.csv` dans un script de dev** : il contient le test. → Toujours `train_val.csv`.
 
 Source : scikit-learn, *Cross-validation: evaluating estimator performance*, section « Cross-validation iterators
@@ -1124,7 +1136,471 @@ metadata.csv ─▶ make splits ─▶ make preprocess ─▶ make baselines ─
 ---
 
 <a id="s18"></a>
-## 18. Rendu : règles du projet et fichiers attendus
+## 18. Comprendre un réseau de neurones : couches affines + activations (cours RNP — `src/models.py`)
+
+**Idée :** un réseau de neurones (MLP) est une **composition** de fonctions affines `Ax + b` séparées par une fonction
+non linéaire appliquée case par case ; sans ces non-linéarités, tout le réseau se réduirait à **une seule** fonction
+affine.
+
+```
+x ∈ ℝ⁴ ──▶ h¹(x) = A¹x + b¹ ──▶ η ──▶ h²(·) = A²· + b² ──▶ η ──▶ h³(·) ──▶ y ∈ ℝ³ (scores des classes)
+           A¹ : 5×4, b¹ : 5          A² : 6×5, b² : 6                    (formule du cours)
+           R(x) = h³ ∘ η ∘ h² ∘ η ∘ h¹ (x)
+
+Un neurone p de la couche :  y_p = Σ_k A_pk · x_k + b_p     (somme pondérée de ses entrées, plus un biais)
+
+Activations η usuelles (appliquées à chaque nombre) :
+   tanh          σ (sigmoïde)        ReLU = max(0, x)       LReLU = max(0,1·x, x)
+   ─────╱‾‾‾      ____╱‾‾‾‾            ____╱                   ‾‾‾‾╱
+   [-1, 1]        [0, 1]              [0, +∞[  (ResNet)        pente 0,1 à gauche
+```
+- **Paramètres** = les nombres de `A` et `b`, **appris**. **Hyperparamètres** = la forme du réseau (nombre et taille
+  des couches, activation), plus lr, époques, patience : **choisis** par nous. Dans le projet, les hyperparamètres
+  sont dans `configs/*.yaml`.
+
+### Pourquoi une non-linéarité entre deux couches ?
+Deux couches affines à la suite forment encore une couche affine : `B(Ax + a) + b = (BA)x + (Ba + b)`. Mesuré :
+`Linear(4,3)` puis `Linear(3,2)` donne exactement la même sortie qu'une seule couche de matrice `BA` (`allclose` vrai).
+Empiler 10 couches sans activation ne sert donc à rien. L'activation crée des **effets de seuil** (cours) qui
+permettent de découper l'espace des entrées.
+
+### L'exemple du cours : XOR
+```
+x1 x2 │ XOR          Aucune DROITE ne sépare les 1 des 0 :      1 ┤ ●1        ○0
+ 0  0 │  0                                                      │
+ 0  1 │  1           une couche linéaire seule échoue           0 ┤ ○0        ●1
+ 1  0 │  1                                                      └──┬─────────┬──
+ 1  1 │  0                                                         0         1
+```
+Mesuré (SGD, lr 0,1, 20 000 pas, graine 0) : `Linear(2,1)` sort `[0,06 ; 0,02 ; 0,29 ; 0,24]` (n'importe quoi) ;
+`Linear(2,4) → tanh → Linear(4,1)` sort `[0 ; 1 ; 1 ; 0]`. Le cours obtient la même chose (perte bloquée à 0,31 en
+linéaire).
+
+### Pourquoi la profondeur plutôt que la largeur ?
+Le théorème d'**approximation universelle** dit qu'un MLP à 2 couches peut approcher n'importe quelle fonction
+« raisonnable »… à condition d'avoir une couche cachée **arbitrairement large**. En pratique, ajouter des couches
+découpe l'espace **exponentiellement plus vite** qu'élargir, et donne une **hiérarchie** : les premières couches
+repèrent des formes simples, les suivantes les combinent (cours). C'est exactement l'idée du transfert de la
+[section 7](#s7) : on garde les couches « formes simples », on adapte les dernières.
+
+### Dans le projet
+```python
+model.fc = nn.Linear(model.fc.in_features, NUM_CLASSES)   # couche affine : A (7×512) + b (7)
+```
+- La tête de E2 est un **MLP sans couche cachée** : 512 entrées, 7 sorties, 3 591 paramètres (512 × 7 + 7). C'est un
+  modèle **linéaire** sur les caractéristiques, comme la régression logistique de E1 : d'où leurs scores proches
+  ([section 8](#s8)).
+- Le guide propose ailleurs une tête plus riche (`Linear → ReLU → Linear`) ; non testée ici.
+
+### Pièges
+- **Empiler des `nn.Linear` sans activation** : aucune erreur, mais le réseau reste linéaire.
+- **Sigmoïde ou tanh dans un réseau profond** : leur dérivée est presque nulle loin de 0, le gradient s'éteint
+  au fil des couches (déduit de la forme des courbes du cours). ReLU n'a pas ce problème pour x > 0 ; c'est
+  l'activation de ResNet.
+
+Source : cours *Neural Networks for Classification — An Introduction to Supervised ML* (J. Le Roux), `RNP.pdf`,
+parties 2 et 6.
+
+---
+
+<a id="s19"></a>
+## 19. Passer des scores aux probabilités : softmax et cross-entropy (cours RNP — `nn.CrossEntropyLoss`)
+
+**Idée :** le réseau sort un **score** (logit) par classe ; le **softmax** les transforme en probabilités, et on
+apprend en rendant la probabilité de la **bonne** classe la plus grande possible, c'est-à-dire en minimisant
+`−log p(bonne classe)`.
+
+```
+Une vraie ligne de results/resnet18_layer4_rerun/fold0_seed0/val_logits.csv (ISIC_0025915, vraie classe bkl) :
+
+            akiec   bcc    bkl    df     mel    nv     vasc
+logits     −0,60  −2,95   2,47  −5,89  −0,03   1,32  −3,69
+   │  exp(·) puis divisé par la somme
+   ▼
+p(c|x)      0,032  0,003  0,689  0,000  0,057  0,218  0,001     (somme = 1)          mesuré
+                          ▲ argmax = bkl → bonne réponse
+
+perte de cette image = −log p(bkl|x) = −log 0,689 = 0,372        (= F.cross_entropy, mesuré)
+```
+
+### D'où vient la formule ? (cours)
+- **softmax** : `p(c|x) = exp(R(x)[c]) / Σ_c' exp(R(x)[c'])`. `exp` rend tout positif, la division fait sommer à 1.
+- On veut que les exemples d'entraînement soient **les plus probables possible** : maximiser `Π_i p(c_i|x_i)`.
+  Un produit de milliers de nombres < 1 est instable numériquement ; on prend le **log** (le produit devient une
+  somme) et on multiplie par **−1** (maximiser devient minimiser, l'optimum vaut 0) :
+  `L(θ) = − Σ_i log p(c_i | x_i)`, la **log-vraisemblance négative**.
+- Pourquoi « cross-entropy » ? `CE(q, p) = − Σ_c q(c|x) log p(c|x)` avec `q` = 1 sur la vraie classe et 0 ailleurs :
+  tous les termes sauf un s'annulent et il reste `−log p(c_i|x_i)`. C'est la même chose.
+
+### Pourquoi pas de softmax au moment de prédire ? (question du cours)
+Le softmax est **croissant** : il ne change pas l'ordre des scores. `argmax(logits) = argmax(softmax(logits))`.
+Le projet fait donc `logits.argmax(dim=1)` directement (`src/train.py::evaluate`). Le softmax ne sert que quand on
+veut une **confiance** (calibration, abstention).
+
+### Lien avec la perte initiale (section 13)
+Si tous les logits sont égaux, chaque `p = 1/7` et la perte vaut `−log(1/7) = ln 7 ≈ 1,95` : c'est le contrôle
+de la [section 13](#s13).
+
+### Lien avec le *temperature scaling* (phase 5, pas encore codé)
+Diviser les logits par `T > 1` **aplatit** les probabilités sans changer l'argmax. Mesuré sur la même ligne avec
+`T = 2` : p(bkl) passe de 0,689 à 0,456, p(nv) de 0,218 à 0,256 ; la classe prédite reste bkl. C'est pourquoi le
+projet sauve les **logits** ([section 9](#s9)).
+
+```python
+criterion = nn.CrossEntropyLoss(weight=weight)     # log-softmax + NLL en une seule fonction
+loss = criterion(outputs, labels)                  # outputs = LOGITS bruts (64, 7), labels = entiers (64,)
+```
+
+### Les astuces du code
+- **`CrossEntropyLoss` attend des logits**, pas des probabilités : elle calcule elle-même `log_softmax`, de façon
+  stable (elle soustrait le max avant `exp` pour éviter les débordements).
+- **Les labels sont des entiers** (`torch.long`), pas des vecteurs one-hot : d'où l'importance de la liste figée
+  `CLASSES` ([section 1](#s1)).
+
+### Pièges
+- **Mettre un `softmax` en dernière couche puis `CrossEntropyLoss`** : softmax appliqué deux fois ; aucune erreur,
+  mais les gradients sont écrasés et l'apprentissage ralentit (déduit de la doc PyTorch, qui précise que l'entrée
+  doit être non normalisée).
+- **Lire une probabilité de 0,99 comme « sûr à 99 % »** : un réseau moderne est souvent **trop confiant** (Guo et
+  al. 2017, cité dans le guide) ; c'est l'objet de H5.
+
+Source : cours RNP, partie 8 (*Neural Networks for Classification*, softmax, NLL, cross-entropy) ; PyTorch,
+`torch.nn.CrossEntropyLoss`.
+
+---
+
+<a id="s20"></a>
+## 20. Apprendre les poids : descente de gradient, lots et optimiseurs (cours RNP — `src/train.py`, `scripts/train.py`)
+
+**Idée :** on part de poids au hasard et on les déplace **un petit pas** dans la direction qui fait baisser la perte
+le plus vite (l'opposé du gradient) ; on estime ce gradient sur un **lot** d'images plutôt que sur toutes.
+
+```
+θ_{t+1} = θ_t − α · ∇L(θ_t)          α = learning rate (lr)
+
+      perte L(θ)
+        │  ●                         α trop petit : ●●●●●●●●●● ... (très lent)
+        │    ●                       α bien choisi : ● ● ● ●  (descend)
+        │      ●                     α trop grand :  ●       ●     (saute par-dessus, diverge)
+        │        ●  ●                                   ●   ●
+        │           ● ●●  minimum                            ●
+        └──────────────────────────── θ
+
+Gradient exact : moyenne sur les 7 210 images  ─▶ 1 pas par époque (trop lent)
+SGD pur        : 1 image                         ─▶ 7 210 pas par époque, très bruité
+Mini-lots      : 64 images                       ─▶ 113 pas par époque  ← ce que fait le projet
+```
+
+### Pourquoi ça descend ? (cours)
+Développement de Taylor : `L(θ − α∇L) ≈ L(θ) − α‖∇L‖²`. Le terme retiré est **positif** : pour un pas `α` assez petit,
+la perte baisse. Le cours rappelle deux limites : `L` n'est **pas convexe** (plusieurs minima, mais un minimum local
+suffit en pratique), et on ne sait pas résoudre `∇L = 0` à la main, d'où la méthode itérative.
+
+### Pourquoi des lots ? (cours)
+Le gradient de la perte est une **moyenne** sur tous les exemples, donc une **espérance** : la moyenne sur un lot tiré
+au hasard en est un estimateur **sans biais** (Monte-Carlo). Un lot de 64 coûte 113 fois moins qu'une époque et donne
+une direction assez bonne. Le bruit du lot a même un effet de régularisation (déduit, non mesuré ici).
+Avec ≈ 7 210 images et des lots de 64 : 112 lots pleins et un dernier de 42 (déduit : 7 210 = 112 × 64 + 42) ; d'où
+la moyenne pondérée par la taille du lot de la [section 9](#s9).
+
+### SGD, Adam, AdamW ?
+| | SGD | Adam | AdamW (projet) |
+|---|---|---|---|
+| Pas | le même `α` pour tous les poids | `α` adapté **par poids** (moyennes des gradients passés) | comme Adam |
+| Régularisation L2 | ajoutée au gradient | ajoutée au gradient (mélangée à l'adaptation) | **décroissance des poids séparée** (`weight_decay`) |
+| Dans le cours (XOR) | lr 0,1, 10⁶ pas → perte 7·10⁻⁵ | lr 0,001, 10⁵ pas → perte 0,011 | – |
+Le projet utilise AdamW (`configs/*.yaml`) : lr **1e-3** pour la tête seule, **1e-4** pour `layer4` (poids pré-entraînés
+déjà bons : un grand pas les détruirait, guide phase 3).
+
+```python
+optimizer.zero_grad()            # remettre les gradients à 0 : backward() les ADDITIONNE
+outputs = model(images)
+loss = criterion(outputs, labels)
+loss.backward()                  # calcule ∇L pour chaque paramètre (section 21), rangé dans param.grad
+optimizer.step()                 # θ ← θ − α·(...)  selon la règle de l'optimiseur
+```
+Le cours écrit la mise à jour à la main (`param.data - alpha * param.grad`, puis `param.grad = None`) :
+`optimizer.step()` et `zero_grad()` font exactement ces deux lignes, pour tous les paramètres.
+
+### Pièges
+- **lr trop grand en fine-tuning** : la perte remonte dès les premières époques, les caractéristiques ImageNet sont
+  perdues (guide phase 3). Le projet divise le lr par 10 pour `layer4`.
+- **Oublier `zero_grad()`** : les gradients de tous les lots s'accumulent ([section 9](#s9)).
+
+Source : cours RNP, parties 3, 5 et 7 (descente de gradient, SGD, variantes) ; PyTorch, `torch.optim.AdamW` ;
+Loshchilov et Hutter, *Decoupled Weight Decay Regularization*, ICLR 2019 (différence Adam / AdamW, hors du cours).
+
+---
+
+<a id="s21"></a>
+## 21. Calculer le gradient : rétropropagation sur le graphe de calcul (cours RNP — `loss.backward()`)
+
+**Idée :** PyTorch enregistre chaque opération dans un **graphe** ; pour obtenir le gradient, il le parcourt **de la
+sortie vers les entrées** en multipliant les dérivées locales (règle de la chaîne). Coût : de l'ordre d'une passe avant.
+
+```
+Exemple du cours :  z = log(x1 · x2) · sin(x2),   x1 = 0,5   x2 = 0,75
+
+PASSE AVANT (valeurs)                                     PASSE ARRIÈRE (∂z/∂·), de droite à gauche
+x1 = 0,5  ─┐                                              ∂z/∂z  = 1
+           ├─ × ─▶ y3 = 0,375 ─▶ log ─▶ y1 = −0,981 ─┐     ∂z/∂y1 = y2 = 0,682      ∂z/∂y2 = y1 = −0,981
+x2 = 0,75 ─┤                                         ├─ × ─▶ z = −0,669
+           └──────────────▶ sin ─▶ y2 =  0,682 ──────┘     ∂z/∂y3 = 0,682 / y3 = 1,818
+                                                           ∂z/∂x1 = 1,818 · x2 = 1,36
+                                                           ∂z/∂x2 = 1,818 · x1 + (−0,981) · cos(x2) = 0,19
+```
+Mesuré avec `torch.autograd` : z = −0,669, **∂z/∂x1 = 1,363**, **∂z/∂x2 = 0,191** (mêmes valeurs que le cours).
+
+### Pourquoi de la sortie vers l'entrée ?
+On veut la dérivée **d'un seul nombre** (la perte) par rapport à des **millions** de paramètres. En partant de la sortie,
+chaque nœud reçoit « combien la perte bouge si je bouge », puis le transmet à ses entrées : chaque dérivée locale est
+calculée **une fois** et partagée. Le coût est linéaire en la taille du graphe (cours : « share computation »).
+Partir des entrées demanderait une passe par paramètre.
+
+### Pourquoi `x2` reçoit deux contributions ?
+`x2` sert deux fois (dans le produit et dans le sinus) : les gradients venant des deux chemins **s'additionnent**.
+C'est la même raison pour laquelle `backward()` **additionne** dans `param.grad`, et pourquoi il faut `zero_grad()`.
+
+### Dans le projet
+- **`requires_grad=False`** ([section 7](#s7)) : PyTorch ne garde pas de dérivée pour ces poids. Avec
+  `trainable="head"`, la passe arrière s'arrête à `fc` : pas de calcul dans les 11 M de poids gelés, d'où des époques
+  plus courtes (24 à 26 s pour E2 contre ≈ 74 s pour tout le réseau sur JPEG d'origine, montages différents,
+  `rapport_data/`).
+- **`@torch.no_grad()`** (`predict`, `extract`) : aucun graphe n'est construit, donc ni mémoire ni temps pour la passe
+  arrière ([section 9](#s9)).
+
+```python
+x1 = torch.tensor(0.5, requires_grad=True)
+x2 = torch.tensor(0.75, requires_grad=True)
+z = torch.log(x1 * x2) * torch.sin(x2)      # passe avant : le graphe est enregistré
+z.backward()                                # passe arrière
+print(x1.grad, x2.grad)                     # tensor(1.3633) tensor(0.1912)
+```
+
+### Pièges
+- **`grad` vaut `None`** avant le premier `backward()` (cours), et reste `None` pour un poids gelé.
+- **`loss.item()`** et non `loss` pour cumuler la perte d'une époque : garder `loss` garderait tout le graphe de
+  chaque lot en mémoire ([section 9](#s9)).
+
+Source : cours RNP, partie 4 (*Gradient Computation*), exemple repris du site PyTorch.
+
+---
+
+<a id="s22"></a>
+## 22. Repérer un motif local : la convolution (cours Convolutions — `torch.nn.Conv2d`)
+
+**Idée :** une convolution fait glisser un **petit filtre** sur l'image ; à chaque position, elle calcule la somme des
+pixels voisins pondérés par le filtre, c'est-à-dire **à quel point ce coin d'image ressemble au filtre**.
+
+```
+1D (exemple du cours) : a = [1, 2, 3] sur v = [4, 5, 6, 7], avec 2 zéros de chaque côté (padding = 2)
+
+v complété :   0   0   4   5   6   7   0   0
+filtre :               3   2   1                 ← le filtre RETOURNÉ glisse
+                       3·4 + 2·5 + 1·6 = 28
+sortie f :     4  13  28  34  32  21             (= np.convolve([1,2,3], [4,5,6,7]), mesuré)
+
+2D : image 5×5 avec un bord vertical, filtre 3×3 « bord vertical » (lignes [-1 0 1] / 3, sans padding)
+
+image M              filtre              sortie 3×3 (mesuré)
+0 0 1 1 1            -1  0  1             1  1  0
+0 0 1 1 1     ⋆      -1  0  1   / 3  ──▶  1  1  0      ← forte réponse là où le bord est,
+0 0 1 1 1            -1  0  1             1  1  0         0 dans la zone uniforme
+0 0 1 1 1
+0 0 1 1 1            taille de sortie : 5 − 3 + 1 = 3
+```
+- Un filtre **moyenne** (tout à 1/9) **floute** : sortie `0,33 0,67 1,00` sur la même image (mesuré).
+- Un filtre « laplacien » `[[0,−1,0],[−1,4,−1],[0,−1,0]] / 4` (cours, « sharpening ») répond **−0,25 / +0,25** de part
+  et d'autre du bord et **0** ailleurs (mesuré).
+
+### Pourquoi une convolution détecte un motif ? (cours)
+Un produit scalaire entre le filtre et un morceau d'image est une **mesure de similarité** : il est grand quand le
+morceau « ressemble » au filtre. Convolution = **détection de caractéristique** à toutes les positions. Si on peut
+écrire à la main un filtre de flou ou de contour, alors l'apprentissage peut **trouver** de tels filtres : c'est ce
+qu'on voit sur les filtres 11×11 appris par AlexNet (cours, Krizhevsky et al. 2012) : bords, formes, contrastes de
+couleur.
+
+### Pourquoi c'est mieux qu'une couche `Linear` sur les pixels aplatis ?
+| | `Linear` sur l'image aplatie | `Conv2d` 3×3 |
+|---|---|---|
+| Structure de l'image | perdue (le pixel 1 et le pixel 225 sont « voisins » comme les autres) | **voisinage** respecté |
+| Poids pour passer de 3×224×224 à 64 sorties | `Linear(150 528, 64)` : ≈ 9,6 M, pour 64 nombres en tout | `Conv2d(3, 64, 3)` : 3·3·3·64 + 64 = 1 792, pour 64 cartes entières |
+| Un motif appris à gauche sert à droite ? | non | **oui** (même filtre partout) |
+C'est un **biais inductif** (cours) : on met dans l'architecture une connaissance sur la tâche (des pixels proches
+sont liés, un motif peut apparaître n'importe où). Pour une lésion de peau, la texture d'un réseau pigmentaire est la
+même où qu'elle soit (déduit).
+
+### Canaux et volumes (cours)
+Une image couleur est un tenseur `C × H × W` (C = 3). Un filtre a la **profondeur de son entrée** (3 × k × k) et rend
+un seul nombre par position ; **D filtres** en parallèle donnent D canaux : `C × H × W → D × H' × W'`.
+```
+Conv2d(3, 12, 5) :  poids (12, 3, 5, 5) + biais (12)  = 12·3·5·5 + 12 = 912 paramètres (mesuré)
+entrée 3×224×224 ─▶ sortie 12×220×220   (sans padding : 224 − 5 + 1 = 220, mesuré)
+         padding=2 ─▶ sortie 12×224×224 (taille conservée, mesuré)
+```
+Une convolution est **affine** : on la fait suivre d'une ReLU pour la non-linéarité ([section 18](#s18)).
+
+### Les astuces (convention et taille)
+- **PyTorch ne retourne pas le filtre** : `nn.Conv1d`/`Conv2d` calcule une **corrélation croisée**, appelée
+  « convolution » par convention. Le cours met donc `[3, 2, 1]` dans les poids pour retrouver `np.convolve` avec
+  `[1, 2, 3]`. Mesuré : avec `[1, 2, 3]` non retourné, la sortie est `[12, 23, 32, 38, 20, 7]`. Sans importance quand
+  les filtres sont **appris** (il apprend directement la version retournée).
+- **Taille de sortie** = `n − k + 1` sans padding ; `padding = ⌊k/2⌋` garde la taille (k impair).
+- **Stride** (pas) : la convolution saute des positions ; avec `stride=2` la taille est divisée par 2 environ
+  (la première couche de ResNet, [section 24](#s24)).
+
+### Pièges
+- **Bords artificiels avec le padding à zéro** : sur l'image ci-dessus, le filtre « bord vertical » avec `padding=1`
+  répond **−1** sur la dernière colonne (mesuré) : les zéros ajoutés créent un faux bord blanc → noir.
+  `Conv2d(..., padding_mode="reflect")` remplit avec des pixels miroirs au lieu de zéros ; ResNet garde les zéros.
+- **Image cropée sans prévenir** : `Conv2d(3, 12, 5)` sur 3×640×480 rend 12×636×476 (cours : « whaaaat!!! ») ; c'est
+  le `n − k + 1`.
+- **Ordre des axes** : PyTorch attend `(N, C, H, W)` ; PIL et matplotlib donnent `(H, W, C)`. `ToTensor` fait la
+  conversion ([section 4](#s4)), `img.permute(1, 2, 0)` revient en arrière pour afficher (cours).
+
+Source : cours *Neural Networks for Classification — Convolutional Networks for Image Classification* (J. Le Roux),
+`convolutions.pdf`, parties 2 et 3 ; animations conseillées par le cours : https://github.com/vdumoulin/conv_arithmetic
+et https://cs231n.github.io/convolutional-networks/.
+
+---
+
+<a id="s23"></a>
+## 23. Résumer une zone et voir plus large : pooling et champ récepteur (cours Convolutions)
+
+**Idée :** le **pooling** remplace chaque petit carré de pixels par **un seul** nombre (le max ou la moyenne) ; en
+alternant convolutions et pooling, chaque neurone « voit » une zone de plus en plus grande de l'image.
+
+```
+Max-pooling 2×2 (mesuré)                    Average-pooling 2×2 (mesuré)
+
+1 3 │ 2 0                                    1 3 │ 2 0
+4 6 │ 1 1      ──▶   6  2                    4 6 │ 1 1      ──▶   3,5   1
+────┼────                                    ────┼────
+0 2 │ 5 7      ──▶   2  7                    0 2 │ 5 7      ──▶   1     4,25
+1 1 │ 3 2                                    1 1 │ 3 2
+« le motif est-il présent dans la zone ? »   « en moyenne, combien ? »
+
+Champ récepteur : L convolutions 3×3 empilées  →  1 + L·(k − 1) pixels
+
+couche 3   ·  ·  ·  ●  ·  ·  ·          RF = 7
+couche 2      ·  ·  ●  ·  ·             RF = 5
+couche 1         ·  ●  ·                RF = 3
+entrée    □  □  □  □  □  □  □  □  □
+```
+
+### Pourquoi réduire la taille ? (cours)
+Le réseau doit passer de « une information par pixel » (`3 × W × H`) à « une information pour toute l'image »
+(`N × 1 × 1`, N = nombre de classes). Les convolutions **ajoutent** des canaux (plus de motifs différents), le pooling
+**réduit** la grille (des zones de plus en plus grandes) :
+`C0×W0×H0 → C1×W1×H1 → … → Cn×1×1 → classifieur`, avec `C` qui monte et `W, H` qui descendent.
+
+### Pourquoi empiler des couches ? Le champ récepteur
+Un neurone d'une couche 3×3 ne voit que 3×3 pixels. Empiler `L` couches donne `1 + L(k − 1)` pixels (3, 5, 7 pour 1, 2,
+3 couches) ; avec le pooling qui divise la grille, quelques couches suffisent pour voir **toute l'image**. Les
+premières couches voient des **détails locaux** (bords), les dernières des **zones entières** (forme de la lésion).
+
+### Quelle propriété doit avoir l'opération de pooling ? (quiz du cours, réponse raisonnée)
+Elle doit résumer une zone **sans dépendre de l'ordre** des pixels de la zone (max, min, moyenne : tous symétriques)
+et **sans paramètre à apprendre**. Effet utile : un petit décalage du motif à l'intérieur de la zone ne change pas le
+max, d'où une **invariance aux petites translations** (déduit, pas une citation du cours).
+
+### Exercice du cours : les volumes de `ConvNet1` (MNIST, 1 × 28 × 28)
+Mesuré en faisant passer un tenseur `(1, 1, 28, 28)` :
+| Couche | Volume de sortie | Pourquoi |
+|---|---|---|
+| `Conv2d(1, 10, 3, padding=1)` + ReLU | 10 × 28 × 28 | padding 1 avec k = 3 : taille gardée |
+| `MaxPool2d(2)` | 10 × 14 × 14 | divisé par 2 |
+| `Conv2d(10, 20, 5)` + ReLU | 20 × 10 × 10 | 14 − 5 + 1 |
+| `MaxPool2d(2)` | 20 × 5 × 5 | |
+| `Conv2d(20, 40, 3)` + ReLU | 40 × 3 × 3 | 5 − 3 + 1 |
+| `MaxPool2d(3)` | 40 × 1 × 1 | une seule position : toute l'image |
+| `x.view(-1)` puis MLP | 40 → 10 classes | aplatit en vecteur pour la couche `Linear` |
+
+### Pièges
+- ⚠️ **`torch.nn.MaxPool2D` n'existe pas** (le cours l'écrit avec un `D` majuscule) : `AttributeError`. Le bon nom est
+  **`MaxPool2d`** (mesuré : `hasattr(torch.nn, "MaxPool2D")` vaut `False`).
+- **`x.view(-1)` aplatit aussi le lot** : avec un lot de 64 images, on obtient un seul vecteur de 64 × 40 nombres au
+  lieu de 64 vecteurs de 40. Le code du cours ne marche que pour **une** image ; avec des lots, écrire
+  `x.flatten(1)` ou `x.view(x.size(0), -1)` (déduit de la sémantique de `view`). C'est la réponse au « quiz: why is
+  this for? ».
+
+Source : cours Convolutions, partie 4 (*Pooling*, *Receptive Field*, *Putting it all together*).
+
+---
+
+<a id="s24"></a>
+## 24. Chaîne complète : ResNet-18, du pixel aux 7 logits (cours Convolutions + `src/models.py`)
+
+**Idée :** ResNet-18 est exactement l'architecture du cours (convolutions qui **ajoutent des canaux**, réductions qui
+**rétrécissent la grille**, classifieur à la fin), avec deux ajouts : la **normalisation par lots** (BatchNorm) et les
+**connexions résiduelles** qui permettent d'empiler 18 couches sans que l'apprentissage se bloque.
+
+```
+volume (C × H × W)          couche                              champ vu / rôle
+3 × 224 × 224   image       (sections 3 et 4)
+64 × 112 × 112  conv1 7×7, stride 2 + BN + ReLU                bords, couleurs   (mesuré : 112×112)
+64 × 56 × 56    maxpool 3×3, stride 2                           (mesuré : 56×56)
+64 × 56 × 56    layer1 : 2 blocs, conv 3×3                      motifs locaux
+128 × 28 × 28   layer2 : 2 blocs, 1er conv stride 2             textures
+256 × 14 × 14   layer3 : 2 blocs, 1er conv stride 2             parties de la lésion
+512 × 7 × 7     layer4 : 2 blocs, 1er conv stride 2             zones entières   ← dégelé en E3
+512 × 1 × 1     avgpool (moyenne sur les 7 × 7 positions)       toute l'image : le vecteur 512 de E1
+7               fc : Linear(512, 7)                              scores des classes (section 18)
+
+C monte (3 → 512), H × W descend (224 → 7 → 1) : le pipeline du cours.
+```
+Volumes de conv1 et maxpool **mesurés** (couches recréées avec `torch.nn`) ; les autres viennent de l'architecture
+publiée (He et al. 2016) et de `torchvision`, non mesurés ici (torchvision absent de l'environnement local).
+
+### Un bloc résiduel (`BasicBlock`)
+```
+x ──┬─▶ conv 3×3 ─▶ BN ─▶ ReLU ─▶ conv 3×3 ─▶ BN ──▶ (+) ─▶ ReLU ─▶ sortie
+    │                                                 ▲
+    └─────────────── identité (ou conv 1×1 stride 2 si la taille change) ┘
+
+sortie = ReLU( F(x) + x )      le bloc n'apprend que la CORRECTION F(x) à apporter à x
+```
+- **Pourquoi le raccourci ?** Le gradient passe directement par l'addition (dérivée de `x` = 1) : même après 18
+  couches, les premières reçoivent un signal d'apprentissage. Et si un bloc n'est pas utile, il lui suffit
+  d'apprendre `F(x) ≈ 0` (He et al. 2016 ; hors du cours).
+- **Le conv 1×1 stride 2** du premier bloc de `layer2` à `layer4` ajuste `x` à la nouvelle taille (canaux doublés,
+  grille divisée par 2) pour pouvoir l'additionner. Dans `layer4` : 256 × 512 = 131 072 poids
+  ([section 7](#s7), calcul des paramètres).
+
+### BatchNorm : ce que fait `model.train()` / `model.eval()`
+`BatchNorm2d` centre et réduit chaque canal, puis le remet à l'échelle avec deux paramètres appris (γ, β) : c'est la
+**normalisation des entrées** recommandée par le cours, appliquée **à l'intérieur** du réseau.
+| | mode `train()` | mode `eval()` |
+|---|---|---|
+| Moyenne / variance utilisées | celles **du lot courant** | `running_mean`, `running_var` mémorisées |
+| `running_mean` mise à jour ? | **oui**, à chaque passe avant | non |
+| Sortie d'une image | dépend des autres images du lot | ne dépend que de l'image |
+Mesuré sur une `BatchNorm2d(3)` seule, entrée de moyenne 5 : en `train()`, sortie de moyenne ≈ 0 et `running_mean`
+passe de 0 à ≈ 0,49 après **une** passe ; en `eval()` (statistiques encore proches de 0 et 1), sortie de moyenne 3,85.
+Même avec **`requires_grad=False` sur γ et β**, une passe en `train()` met `running_mean` à jour (mesuré, valeurs
+identiques) : c'est le piège de la [section 7](#s7), confirmé sur une couche isolée.
+
+### Pourquoi le transfert marche (le lien avec tout ce qui précède)
+Les filtres de `conv1` à `layer3` détectent des bords, des textures, des contrastes de couleur ([section 22](#s22)) :
+ils sont utiles pour la peau comme pour ImageNet. `layer4` voit des zones de l'image entière ([section 23](#s23)) et
+combine ces motifs en « objets » ImageNet : c'est lui qu'il faut adapter. Mesuré dans le projet : figer tout
+(E1, E2) donne ≈ 0,50 de macro-F1, dégeler `layer4` (E3) donne **0,661**.
+
+### Pièges
+- **Images qui ne font pas 224 × 224** : grâce à l'`avgpool` adaptatif, ResNet accepte d'autres tailles (la grille
+  finale n'est plus 7 × 7, mais la moyenne donne toujours 512 nombres). Les poids ImageNet ont été appris à 224 : une
+  autre taille change l'échelle des motifs (déduit).
+- **Très petit lot en `train()`** : BatchNorm estime moyenne et variance sur ce lot seul ; avec 1 ou 2 images, ces
+  statistiques sont très bruitées (déduit). Le dernier lot de 42 images du projet est assez grand.
+
+Sources : cours Convolutions, parties 4 et 5 (pipeline, normalisation) ; He, Zhang, Ren, Sun, *Deep Residual Learning
+for Image Recognition*, CVPR 2016, https://arxiv.org/abs/1512.03385 ; PyTorch, `torchvision.models.resnet18` et
+`torch.nn.BatchNorm2d`.
+
+---
+
+<a id="s25"></a>
+## 25. Rendu : règles du projet et fichiers attendus
 
 ### Règles générales (protocole et guide)
 - **Le test n'est lu par aucun script avant la phase 6.** Tous les scripts lisent `train_val.csv` et vérifient
@@ -1153,15 +1629,15 @@ metadata.csv ─▶ make splits ─▶ make preprocess ─▶ make baselines ─
 
 ---
 
-<a id="s19"></a>
-## 19. Pièges à retenir (liste de contrôle)
+<a id="s26"></a>
+## 26. Pièges à retenir (liste de contrôle)
 
 Chaque ligne renvoie vers la solution (clique sur le lien).
 
 - [ ] Labels recalculés avec `sorted(unique())` ou `LabelEncoder` → [solution : liste `CLASSES` figée](#s1)
 - [ ] Partition par image : 38 % des images de validation ont une sœur en entraînement → [solution : grouper par `lesion_id`](#s2)
 - [ ] Un fold sans `df` → [solution : stratifier en plus de grouper](#s2)
-- [ ] Partitions régénérées sur Kaggle, différentes → [solution : copier les CSV, vérifier les MD5](#s18)
+- [ ] Partitions régénérées sur Kaggle, différentes → [solution : copier les CSV, vérifier les MD5](#s25)
 - [ ] Un script de dev qui lit `splits.csv` (donc le test) → [solution : `train_val.csv` + `assert`](#s2)
 - [ ] `FileNotFoundError: Image introuvable` → [solution : bon `--image-dir`, `make preprocess`](#s3)
 - [ ] Index pandas troué après un filtre → [solution : `reset_index(drop=True)`](#s3)
@@ -1191,3 +1667,14 @@ Chaque ligne renvoie vers la solution (clique sur le lien).
 - [ ] Matrice de confusion normalisée par colonne par erreur → [solution : `keepdims=True`](#s15)
 - [ ] `cm[y, p] += 1` qui perd les doublons → [solution : boucle ou `np.add.at`](#s15)
 - [ ] Chrono GPU qui s'arrête avant la fin du calcul → [solution : `torch.cuda.synchronize()`](#s16)
+- [ ] Des `nn.Linear` empilés sans activation (le réseau reste linéaire) → [solution : ReLU entre les couches](#s18)
+- [ ] Un `softmax` avant `CrossEntropyLoss` (softmax appliqué deux fois) → [solution : passer les logits bruts](#s19)
+- [ ] Lire une probabilité de 0,99 comme « sûr à 99 % » → [solution : calibration (phase 5)](#s19)
+- [ ] lr trop grand en fine-tuning : caractéristiques ImageNet détruites → [solution : lr 10 fois plus petit](#s20)
+- [ ] Garder `loss` au lieu de `loss.item()` pour cumuler la perte → [solution : `.item()`](#s21)
+- [ ] Sortie de convolution plus petite que l'entrée (`n − k + 1`) → [solution : `padding = k // 2`](#s22)
+- [ ] Faux bord créé par le padding à zéro → [solution : le savoir, ou `padding_mode="reflect"`](#s22)
+- [ ] Axes `(H, W, C)` au lieu de `(C, H, W)` → [solution : `ToTensor`, `permute(1, 2, 0)` pour afficher](#s22)
+- [ ] `AttributeError` sur `torch.nn.MaxPool2D` (code du cours) → [solution : `MaxPool2d`](#s23)
+- [ ] `x.view(-1)` qui mélange les images d'un lot → [solution : `x.flatten(1)`](#s23)
+- [ ] Statistiques BatchNorm modifiées par un passage en `train()` → [solution : comprendre train / eval](#s24)
